@@ -1,0 +1,368 @@
+/* ==========================================
+   ADMIN TASK CREATION PAGE
+   ========================================== */
+
+.atc-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.atc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.atc-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 0.4rem;
+    font-family: var(--font-display, 'Inter', sans-serif);
+}
+
+.atc-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    max-width: 520px;
+}
+
+.atc-create-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    background: var(--primary, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+}
+
+.atc-create-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* Alerts */
+.atc-alert {
+    padding: 0.875rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    font-weight: 500;
+}
+
+.atc-alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.atc-alert-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* Form Card */
+.atc-form-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.75rem;
+    margin-bottom: 2rem;
+}
+
+.atc-form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.atc-form-header h2 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.atc-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+    transition: color 0.15s;
+}
+
+.atc-close-btn:hover {
+    color: var(--text-main);
+}
+
+/* Presets */
+.atc-preset-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.atc-preset-btn {
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.atc-preset-btn:hover {
+    border-color: var(--primary, #3b82f6);
+    color: var(--primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.06);
+}
+
+/* Form */
+.atc-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.atc-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.atc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.atc-form-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.atc-input {
+    padding: 0.65rem 0.9rem;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-main);
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.atc-input:focus {
+    outline: none;
+    border-color: var(--primary, #3b82f6);
+}
+
+.atc-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.atc-form-actions {
+    display: flex;
+    gap: 0.875rem;
+    align-items: center;
+    padding-top: 0.5rem;
+}
+
+.atc-submit-btn {
+    padding: 0.65rem 1.4rem;
+    background: var(--primary, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.atc-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.atc-submit-btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.atc-cancel-btn {
+    padding: 0.65rem 1.25rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.atc-cancel-btn:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-main);
+}
+
+/* ==========================================
+   TIMELINE SECTION
+   ========================================== */
+.atc-timeline-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.75rem;
+}
+
+.atc-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 1.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.atc-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem;
+    color: var(--text-muted);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.atc-tasks-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.atc-task-item {
+    display: flex;
+    gap: 1.25rem;
+    position: relative;
+}
+
+.atc-timeline-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 40px;
+    flex-shrink: 0;
+}
+
+.atc-timeline-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+.atc-dot-done {
+    background: var(--primary, #3b82f6);
+}
+
+.atc-dot-pending {
+    background: var(--bg-main);
+    border: 2px solid var(--border-color);
+}
+
+.atc-timeline-line {
+    width: 2px;
+    flex: 1;
+    min-height: 32px;
+    background: var(--border-color);
+    margin: 4px 0;
+}
+
+.atc-task-content {
+    flex: 1;
+    padding-bottom: 1.75rem;
+}
+
+.atc-task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.atc-task-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 0.2rem;
+}
+
+.atc-task-deadline {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.atc-task-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-top: 0.4rem;
+    max-width: 620px;
+}
+
+.atc-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.atc-delete-btn:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+@media (max-width: 640px) {
+    .atc-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .atc-header {
+        flex-direction: column;
+    }
+}

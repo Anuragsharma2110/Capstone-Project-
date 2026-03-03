@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import './UIComponents.css';
 
-export const Input: React.FC<{
-    label: string;
-    type?: string;
-    name: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    required?: boolean;
-    placeholder?: string;
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+    label?: string;
     error?: string;
-    className?: string;
-    style?: React.CSSProperties;
-}> = ({ label, type = 'text', name, value, onChange, required, placeholder, error, className = '', style }) => {
+}
+
+export const Input: React.FC<InputProps> = ({
+    label,
+    type = 'text',
+    error,
+    className = '',
+    style,
+    ...props
+}) => {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
     const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
@@ -24,12 +25,8 @@ export const Input: React.FC<{
                 <input
                     className="input"
                     type={inputType}
-                    name={name}
-                    value={value}
-                    onChange={onChange}
-                    required={required}
-                    placeholder={placeholder}
-                    style={{ paddingRight: isPassword ? '3rem' : '1rem' }}
+                    style={{ ...style, paddingRight: isPassword ? '3rem' : '1rem' }}
+                    {...props}
                 />
                 {isPassword && (
                     <button

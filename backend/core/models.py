@@ -23,11 +23,46 @@ class User(AbstractUser):
     def is_admin(self):
         return self.role == self.Role.ADMIN
 
-class Cohort(models.Model):
+class Program(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
+    nomination_start_date = models.DateField()
+    nomination_end_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class Nomination(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', _('Pending')
+        APPROVED = 'APPROVED', _('Approved')
+        REJECTED = 'REJECTED', _('Rejected')
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='nominations')
+    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name='nominations')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    statement_of_purpose = models.TextField(blank=True, null=True)
+    nominated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.program.name}"
+
+class Cohort(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', _('Active')
+        PENDING = 'PENDING', _('Pending')
+        ARCHIVED = 'ARCHIVED', _('Archived')
+
+    name = models.CharField(max_length=255)
+    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name='cohorts', null=True, blank=True)
+    professor = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='assigned_cohorts', null=True, blank=True)
+    description = models.TextField(blank=True, null=True)
+    preferred_team_size = models.PositiveIntegerField(default=5)
+    institution_name = models.CharField(max_length=255, default='Unknown Institution')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     start_date = models.DateField()
-    end_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,6 +100,16 @@ class TeamMember(models.Model):
     def __str__(self):
         return f"{self.user.username} in {self.team.name}"
 
+class WeeklyProgress(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='weekly_progress')
+    week_number = models.PositiveIntegerField()
+    update_text = models.TextField()
+    blockers = models.TextField(blank=True, null=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.team.name} - Week {self.week_number}"
+
 class Task(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -94,3 +139,22 @@ class Evaluation(models.Model):
 
     def __str__(self):
         return f"Evaluation for {self.submission}"
+
+class Announcement(models.Model):
+    class Audience(models.TextChoices):
+        ALL = 'ALL', _('All Users')
+        PROFESSORS = 'PROFESSORS', _('Professors Only')
+        LEARNERS = 'LEARNERS', _('Learners Only')
+
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='announcements')
+    audience = models.CharField(max_length=20, choices=Audience.choices, default=Audience.ALL)
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='announcements', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title

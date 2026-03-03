@@ -1,0 +1,256 @@
+/* =========================================
+   ADMIN DASHBOARD NEW UI
+   ========================================= */
+
+.admin-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+}
+
+.metric-action-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    position: relative;
+}
+
+.metric-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.metric-icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--primary);
+}
+
+.metric-card-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0.5rem;
+}
+
+.metric-card-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.metric-card-subtitle span {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.metric-action-btn {
+    width: 100%;
+    padding: 0.625rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 0.5rem;
+}
+
+.metric-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text-secondary);
+}
+
+/* Specific Card Styles */
+.progress-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #10b981;
+    border-radius: 4px;
+}
+
+.announcement-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.announcement-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* =========================================
+   TEAM PERFORMANCE TABLE
+   ========================================= */
+.performance-monitor-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
+.performance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.performance-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.performance-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.performance-table th {
+    text-align: left;
+    padding: 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.performance-table td {
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.team-info-cell {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.team-initials {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: white;
+}
+
+.advisor-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-main);
+}
+
+.advisor-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+}
+
+.milestone-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.milestone-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.milestone-dot.active {
+    background: var(--primary);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-approved {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.status-review {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.status-drafting {
+    background: rgba(100, 116, 139, 0.1);
+    color: #94a3b8;
+}
+
+.action-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.action-icon-btn:hover {
+    color: var(--text-main);
+}
+
+/* Toggle Switch Mockup */
+.toggle-switch {
+    width: 36px;
+    height: 20px;
+    background: var(--primary);
+    border-radius: 99px;
+    position: relative;
+    cursor: pointer;
+}
+
+.toggle-handle {
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    right: 3px;
+}

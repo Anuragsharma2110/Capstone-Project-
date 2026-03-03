@@ -19,15 +19,28 @@ const Login: React.FC = () => {
         setLoading(true);
         try {
             await api.post('/auth/login/', { username, password });
-            // Fetch user details after successful login (cookies are set)
             const userResponse = await api.get('/auth/me/');
             login(userResponse.data);
-            navigate('/dashboard');
+
+            const role = userResponse.data.role;
+            if (role === 'ADMIN') {
+                navigate('/admin/dashboard');
+            } else if (role === 'PROFESSOR') {
+                navigate('/professor/dashboard');
+            } else {
+                navigate('/learner/dashboard');
+            }
         } catch (err: any) {
             setError('Invalid credentials. Please try again.');
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSubmit(e);
         }
     };
 
@@ -47,7 +60,8 @@ const Login: React.FC = () => {
                         name="username"
                         value={username}
                         onChange={e => setUsername(e.target.value)}
-                        placeholder="e.g. student@university.edu"
+                        onKeyDown={handleKeyDown}
+                        placeholder="e.g. student@ university.edu"
                         required
                     />
 
@@ -62,6 +76,7 @@ const Login: React.FC = () => {
                             name="password"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             placeholder="••••••••"
                             required
                         />

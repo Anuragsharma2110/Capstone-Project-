@@ -118,6 +118,11 @@ STATIC_URL = 'static/'
 # Custom User Model
 AUTH_USER_MODEL = 'core.User'
 
+# Custom Authentication Backends
+AUTHENTICATION_BACKENDS = [
+    'core.authentication_backends.EmailOrUsernameModelBackend',
+]
+
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

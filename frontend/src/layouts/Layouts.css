@@ -43,6 +43,17 @@
     color: var(--text-secondary);
 }
 
+.header-links a,
+.footer-links a {
+    color: var(--primary-blue);
+    font-weight: 500;
+}
+
+.header-links a:hover,
+.footer-links a:hover {
+    text-decoration: underline;
+}
+
 .auth-main {
     flex: 1;
     display: flex;
@@ -58,9 +69,35 @@
     font-size: 0.875rem;
 }
 
+.auth-footer p {
+    color: var(--text-muted);
+}
+
 .footer-links {
     margin-top: 0.5rem;
     display: flex;
     justify-content: center;
     gap: 1rem;
+}
+
+/* Theme Toggle Styles */
+.icon-button {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+    padding: 0;
+}
+
+.icon-button:hover {
+    background: var(--primary-light);
+    color: var(--primary-blue);
 }
