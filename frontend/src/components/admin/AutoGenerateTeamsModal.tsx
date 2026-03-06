@@ -32,7 +32,7 @@ const AutoGenerateTeamsModal: React.FC<AutoGenerateTeamsModalProps> = ({
 
                 <div className="modal-form">
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-                        This will automatically place all unassigned learners in the selected cohort into random teams.
+                        This will automatically place <strong>unassigned learners</strong> in the selected cohort into random teams. Learners already in a team will not be affected unless you choose to reset.
                     </p>
 
                     <div className="form-group">

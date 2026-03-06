@@ -13,7 +13,7 @@ from core.api.serializers.core import (
     ProgramSerializer, NominationSerializer, CohortSerializer,
     CohortMembershipSerializer, TeamSerializer, TeamMemberSerializer,
     TaskSerializer, SubmissionSerializer, EvaluationSerializer, WeeklyProgressSerializer,
-    AnnouncementSerializer
+    AnnouncementSerializer, UserSimpleSerializer
 )
 from core.permissions import (
     IsAdmin, IsProfessor, IsLearner,
@@ -77,12 +77,40 @@ class CohortViewSet(viewsets.ModelViewSet):
             return Cohort.objects.filter(memberships__user=user)
         return Cohort.objects.none()
 
+    @action(detail=True, methods=['get'], permission_classes=[IsAdmin])
+    def unassigned_learners(self, request, pk=None):
+        """Return learners in this cohort who are not in any team."""
+        cohort = self.get_object()
+        cohort_memberships = CohortMembership.objects.filter(cohort=cohort).select_related('user')
+        all_learners = [cm.user for cm in cohort_memberships if cm.user.role == 'LEARNER']
+
+        # Get IDs of learners already assigned to any team in this cohort
+        assigned_user_ids = set(
+            TeamMember.objects.filter(team__cohort=cohort).values_list('user_id', flat=True)
+        )
+
+        unassigned = [u for u in all_learners if u.id not in assigned_user_ids]
+        serializer = UserSimpleSerializer(unassigned, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def create_team(self, request, pk=None):
+        """Manually create a new (empty) team in this cohort."""
+        cohort = self.get_object()
+        name = request.data.get('name', '').strip()
+        if not name:
+            # Auto-name based on existing team count
+            existing_count = Team.objects.filter(cohort=cohort).count()
+            name = f"Team {existing_count + 1}"
+        team = Team.objects.create(name=name, cohort=cohort)
+        serializer = TeamSerializer(team)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def auto_generate_teams(self, request, pk=None):
         from django.db import transaction
 
         cohort = self.get_object()
-        # Fallback to requested size if cohort doesn't have preferred yet (for safety), default to cohort preferred_team_size
         team_size_input = request.data.get('team_size')
         team_size = int(team_size_input) if team_size_input else cohort.preferred_team_size
 
@@ -92,7 +120,6 @@ class CohortViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check existing teams and reset flag
         existing_teams_exist = Team.objects.filter(cohort=cohort).exists()
         reset_requested = request.data.get('reset', False)
 
@@ -102,7 +129,7 @@ class CohortViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 1. Fetch all learners in this cohort
+        # Fetch all learners in this cohort
         cohort_memberships = CohortMembership.objects.filter(cohort=cohort).select_related('user')
         all_learners = [cm.user for cm in cohort_memberships if cm.user.role == 'LEARNER']
 
@@ -112,53 +139,57 @@ class CohortViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 2. Shuffle
-        random.shuffle(all_learners)
-
         teams_created = []
 
         try:
             with transaction.atomic():
-                # 3. Clean slate if reset requested
                 if reset_requested:
+                    # Full reset: delete all teams and redistribute everyone
                     Team.objects.filter(cohort=cohort).delete()
+                    learners_to_assign = all_learners
+                else:
+                    # Only assign learners NOT already in a team in this cohort
+                    assigned_user_ids = set(
+                        TeamMember.objects.filter(team__cohort=cohort).values_list('user_id', flat=True)
+                    )
+                    learners_to_assign = [u for u in all_learners if u.id not in assigned_user_ids]
 
-                num_learners = len(all_learners)
+                if not learners_to_assign:
+                    return Response(
+                        {"detail": "No unassigned learners found to form new teams."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                random.shuffle(learners_to_assign)
+
+                # Determine starting team counter offset
+                existing_count = Team.objects.filter(cohort=cohort).count()
+                team_counter = existing_count + 1
+
+                num_learners = len(learners_to_assign)
                 num_base_teams = max(1, num_learners // team_size)
-                
-                # We will create exactly num_base_teams.
-                # The remainder will be distributed 1 by 1.
                 remainder = num_learners % team_size
 
-                # If we have fewer total learners than team_size, we just make 1 team.
                 if num_base_teams == 1 and num_learners < team_size:
                     remainder = 0
 
-                team_counter = 1
                 learner_idx = 0
 
                 for i in range(num_base_teams):
-                    # Base size for this team
                     current_team_size = team_size
-                    # Add 1 if we still have remainder to distribute
                     if remainder > 0:
                         current_team_size += 1
                         remainder -= 1
-                    
-                    if learner_idx >= num_learners:
-                        break # Safety
 
-                    chunk = all_learners[learner_idx : learner_idx + current_team_size]
+                    if learner_idx >= num_learners:
+                        break
+
+                    chunk = learners_to_assign[learner_idx: learner_idx + current_team_size]
                     learner_idx += current_team_size
 
                     team_name = f"Team {team_counter}"
                     team = Team.objects.create(name=team_name, cohort=cohort)
-
-                    # Create TeamMembers for the chunk
-                    team_members_to_create = [
-                        TeamMember(team=team, user=user) for user in chunk
-                    ]
-                    TeamMember.objects.bulk_create(team_members_to_create)
+                    TeamMember.objects.bulk_create([TeamMember(team=team, user=u) for u in chunk])
 
                     teams_created.append({
                         "id": team.id,
@@ -167,14 +198,13 @@ class CohortViewSet(viewsets.ModelViewSet):
                     })
                     team_counter += 1
 
-                # Just in case there are loose learners (shouldn't happen with above math unless very weird numbers)
+                # Safety: stray learners go to the last team
                 if learner_idx < num_learners:
-                     leftovers = all_learners[learner_idx:]
-                     # append to last team
-                     if teams_created:
-                         last_team = Team.objects.latest('id')
-                         TeamMember.objects.bulk_create([TeamMember(team=last_team, user=user) for user in leftovers])
-                         teams_created[-1]["member_count"] += len(leftovers)
+                    leftovers = learners_to_assign[learner_idx:]
+                    if teams_created:
+                        last_team = Team.objects.filter(cohort=cohort).latest('id')
+                        TeamMember.objects.bulk_create([TeamMember(team=last_team, user=u) for u in leftovers])
+                        teams_created[-1]["member_count"] += len(leftovers)
 
         except Exception as e:
             return Response(
@@ -349,6 +379,111 @@ class TeamViewSet(viewsets.ModelViewSet):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Team.objects.all()
+        cohort_id = self.request.query_params.get('cohort')
+        if cohort_id:
+            qs = qs.filter(cohort_id=cohort_id)
+        return qs
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def assign_learner(self, request, pk=None):
+        """Assign an unassigned learner to this team."""
+        from django.db import transaction
+        team = self.get_object()
+        cohort = team.cohort
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id, role='LEARNER')
+        except User.DoesNotExist:
+            return Response({"detail": "Learner not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Verify the learner is in this cohort
+        if not CohortMembership.objects.filter(user=user, cohort=cohort).exists():
+            return Response({"detail": "Learner is not a member of this cohort."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify the learner is not already in a team in this cohort
+        if TeamMember.objects.filter(user=user, team__cohort=cohort).exists():
+            return Response({"detail": "Learner is already assigned to a team in this cohort."}, status=status.HTTP_400_BAD_REQUEST)
+
+        preferred_size = cohort.preferred_team_size
+        current_count = team.members.count()
+        warning = None
+        if current_count >= preferred_size:
+            warning = f"Warning: This team now has {current_count + 1} members, exceeding preferred size of {preferred_size}."
+
+        with transaction.atomic():
+            TeamMember.objects.create(team=team, user=user)
+
+        data = {"detail": f"{user.get_full_name() or user.username} assigned to {team.name}."}
+        if warning:
+            data["warning"] = warning
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def move_learner(self, request, pk=None):
+        """Move a learner from this team to another team in the same cohort."""
+        from django.db import transaction
+        team = self.get_object()
+        cohort = team.cohort
+        user_id = request.data.get('user_id')
+        target_team_id = request.data.get('target_team_id')
+
+        if not user_id or not target_team_id:
+            return Response({"detail": "user_id and target_team_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if str(target_team_id) == str(team.id):
+            return Response({"detail": "Source and target teams are the same."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_team = Team.objects.get(id=target_team_id, cohort=cohort)
+        except Team.DoesNotExist:
+            return Response({"detail": "Target team not found in this cohort."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            membership = TeamMember.objects.get(user_id=user_id, team=team)
+        except TeamMember.DoesNotExist:
+            return Response({"detail": "Learner is not a member of this team."}, status=status.HTTP_404_NOT_FOUND)
+
+        preferred_size = cohort.preferred_team_size
+        target_count = target_team.members.count()
+        warning = None
+        if target_count >= preferred_size:
+            warning = f"Warning: Target team now has {target_count + 1} members, exceeding preferred size of {preferred_size}."
+
+        with transaction.atomic():
+            membership.delete()
+            # Ensure learner is not already in target (safety)
+            TeamMember.objects.get_or_create(team=target_team, user_id=user_id)
+
+        data = {"detail": f"Learner moved from {team.name} to {target_team.name}."}
+        if warning:
+            data["warning"] = warning
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def remove_learner(self, request, pk=None):
+        """Remove a learner from this team (learner becomes unassigned)."""
+        from django.db import transaction
+        team = self.get_object()
+        user_id = request.data.get('user_id')
+
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            membership = TeamMember.objects.get(user_id=user_id, team=team)
+        except TeamMember.DoesNotExist:
+            return Response({"detail": "Learner is not a member of this team."}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            membership.delete()
+
+        return Response({"detail": "Learner removed from team successfully."}, status=status.HTTP_200_OK)
 
 
 class TeamMemberViewSet(viewsets.ModelViewSet):
