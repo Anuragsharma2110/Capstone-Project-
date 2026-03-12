@@ -1,7 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './LearnerDashboardUI.css';
 
+interface Task {
+    id: number;
+    title: string;
+    priority: 'Low' | 'Medium' | 'High';
+    completed: boolean;
+}
+
 const LearnerDashboardUI: React.FC = () => {
+    const [tasks, setTasks] = useState<Task[]>([
+        { id: 1, title: 'Integrate Auth0 backend', priority: 'High', completed: false },
+        { id: 2, title: 'Update project docs', priority: 'Medium', completed: false },
+        { id: 3, title: 'QA testing sprint #4', priority: 'Low', completed: false },
+    ]);
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+    const [newTaskPriority, setNewTaskPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
+
+    const handleToggleTask = (id: number) => {
+        setTasks(tasks.map(task =>
+            task.id === id ? { ...task, completed: !task.completed } : task
+        ));
+    };
+
+    const handleAddTask = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTaskTitle.trim()) return;
+
+        const newTask: Task = {
+            id: Date.now(),
+            title: newTaskTitle,
+            priority: newTaskPriority,
+            completed: false
+        };
+
+        setTasks([...tasks, newTask]);
+        setNewTaskTitle('');
+        setNewTaskPriority('Medium');
+        setIsModalOpen(false);
+    };
+
     return (
         <div className="learner-dashboard-container">
             {/* Header Section */}
@@ -26,7 +66,6 @@ const LearnerDashboardUI: React.FC = () => {
                                 </svg>
                                 Team Members
                             </h2>
-                            <a href="#" className="manage-link">Manage Team</a>
                         </div>
                         <div className="team-members-grid">
                             <div className="team-member-card">
@@ -50,12 +89,6 @@ const LearnerDashboardUI: React.FC = () => {
                                     <span className="member-role">UI/UX Design</span>
                                 </div>
                             </div>
-                            <button className="add-member-btn">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
-                            </button>
                         </div>
                     </section>
 
@@ -133,38 +166,80 @@ const LearnerDashboardUI: React.FC = () => {
                             </h2>
                         </div>
                         <div className="tasks-list">
-                            <div className="task-item">
-                                <div className="task-checkbox"></div>
-                                <div className="task-info">
-                                    <span className="task-title">Integrate Auth0 backend</span>
-                                    <span className="task-priority">Priority: High</span>
+                            {tasks.map(task => (
+                                <div
+                                    key={task.id}
+                                    className={`task-item ${task.completed ? 'completed' : ''}`}
+                                    onClick={() => handleToggleTask(task.id)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <div className={`task-checkbox ${task.completed ? 'completed' : ''}`}>
+                                        {task.completed && (
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <div className="task-info">
+                                        <span className={`task-title ${task.completed ? 'completed' : ''}`}>{task.title}</span>
+                                        <span className="task-priority">Priority: {task.priority}</span>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="task-item">
-                                <div className="task-checkbox"></div>
-                                <div className="task-info">
-                                    <span className="task-title">Update project docs</span>
-                                    <span className="task-priority">Priority: Medium</span>
-                                </div>
-                            </div>
-                            <div className="task-item">
-                                <div className="task-checkbox"></div>
-                                <div className="task-info">
-                                    <span className="task-title">QA testing sprint #4</span>
-                                    <span className="task-priority">Priority: Low</span>
-                                </div>
-                            </div>
-                            <a href="#" className="add-task-link">
+                            ))}
+                            <button
+                                className="add-task-link"
+                                onClick={() => setIsModalOpen(true)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}
+                            >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                                 </svg>
                                 Add Task
-                            </a>
+                            </button>
                         </div>
                     </section>
-
                 </div>
             </div>
+
+            {/* Add Task Modal */}
+            {isModalOpen && (
+                <div className="task-modal-overlay">
+                    <div className="task-modal-content">
+                        <div className="task-modal-header">
+                            <h3>Add New Task</h3>
+                            <button className="close-modal-btn" onClick={() => setIsModalOpen(false)}>&times;</button>
+                        </div>
+                        <form onSubmit={handleAddTask} className="task-modal-form">
+                            <div className="form-group">
+                                <label>Task Activity</label>
+                                <input
+                                    type="text"
+                                    placeholder="What needs to be done?"
+                                    value={newTaskTitle}
+                                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Priority Level</label>
+                                <select
+                                    value={newTaskPriority}
+                                    onChange={(e) => setNewTaskPriority(e.target.value as 'Low' | 'Medium' | 'High')}
+                                >
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                            <div className="task-modal-actions">
+                                <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                                <button type="submit" className="submit-btn" disabled={!newTaskTitle.trim()}>Add Task</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

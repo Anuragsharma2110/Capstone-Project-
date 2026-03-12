@@ -185,21 +185,6 @@
     border-radius: 50%;
 }
 
-.milestone-dots {
-    display: flex;
-    gap: 4px;
-}
-
-.milestone-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.milestone-dot.active {
-    background: var(--primary);
-}
 
 .status-badge {
     padding: 4px 12px;

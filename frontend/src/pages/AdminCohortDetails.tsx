@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import AdminLayout from '../layouts/AdminLayout';
 import { Card } from '../components/ui';
 import axiosInstance from '../api/axios';
@@ -26,7 +26,6 @@ interface CohortDetail {
 
 const AdminCohortDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const [cohort, setCohort] = useState<CohortDetail | null>(null);
     const [loading, setLoading] = useState(true);
 

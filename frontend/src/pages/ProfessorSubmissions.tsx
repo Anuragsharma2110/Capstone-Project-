@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import AdminLayout from '../layouts/AdminLayout';
 import { useNavigate } from 'react-router-dom';
 
 const ProfessorSubmissions: React.FC = () => {
     const navigate = useNavigate();
+    const [statusFilter, setStatusFilter] = useState('All Statuses');
 
     const submissions = [
         { team: 'Team Alpha', doc: 'Final Project Proposal', time: '2H AGO', status: 'Pending Review' },
@@ -11,6 +12,10 @@ const ProfessorSubmissions: React.FC = () => {
         { team: 'Team Nova', doc: 'UI/UX Mockups Prototype', time: '8H AGO', status: 'Reviewed' },
         { team: 'Team Beta', doc: 'Midterm Report', time: '1D AGO', status: 'Reviewed' },
     ];
+
+    const filteredSubmissions = statusFilter === 'All Statuses'
+        ? submissions
+        : submissions.filter(sub => sub.status === statusFilter);
 
     return (
         <AdminLayout title="Team Submissions" breadcrumb={['Dashboard', 'Submissions']}>
@@ -20,10 +25,14 @@ const ProfessorSubmissions: React.FC = () => {
                     <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>All Submissions</h2>
                         <div style={{ display: 'flex', gap: '1rem' }}>
-                            <select style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: 'var(--text-main)', outline: 'none' }}>
-                                <option>All Statuses</option>
-                                <option>Pending Review</option>
-                                <option>Reviewed</option>
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: 'var(--text-main)', outline: 'none' }}
+                            >
+                                <option value="All Statuses">All Statuses</option>
+                                <option value="Pending Review">Pending Review</option>
+                                <option value="Reviewed">Reviewed</option>
                             </select>
                         </div>
                     </div>
@@ -39,7 +48,7 @@ const ProfessorSubmissions: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {submissions.map((sub, i) => (
+                            {filteredSubmissions.map((sub, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                     <td style={{ padding: '1.25rem 1.5rem', fontWeight: 600, color: 'var(--text-main)' }}>{sub.team}</td>
                                     <td style={{ padding: '1.25rem 1.5rem', color: 'var(--text-secondary)' }}>{sub.doc}</td>
