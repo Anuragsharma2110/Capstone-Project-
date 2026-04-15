@@ -28,7 +28,7 @@ const LearnerRegister: React.FC = () => {
             await api.post('/auth/register/learner/', formData);
             alert('Learner Registration successful! Please login.');
             navigate('/login');
-        } catch (err: any) {
+        } catch (err) {
             setError('Registration failed. Username might be taken.');
             console.error(err);
         } finally {

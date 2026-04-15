@@ -39,7 +39,7 @@ const Dashboard: React.FC = () => {
             {user?.role === 'ADMIN' && (
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
                     gap: '1.25rem',
                     marginBottom: '2rem',
                     width: '100%'
@@ -108,28 +108,7 @@ const Dashboard: React.FC = () => {
                         <Button onClick={() => navigate('/admin/teams')} style={{ padding: '8px 24px', fontSize: '0.875rem', width: 'auto' }}>Open</Button>
                     </Card>
 
-                    {/* Task Creation Card */}
-                    <Card style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                        <div style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '12px',
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            color: '#f59e0b',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginBottom: '1rem'
-                        }}>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                            </svg>
-                        </div>
-                        <h3 style={{ fontSize: '1.1rem', margin: '0 0 0.75rem 0', fontWeight: 700 }}>Task Creation</h3>
-                        <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>Design and assign project deliverables to teams</p>
-                        <Button onClick={() => navigate('/admin/tasks')} style={{ padding: '8px 24px', fontSize: '0.875rem', width: 'auto' }}>Open</Button>
-                    </Card>
+
 
                     {/* User Management Card */}
                     {userActions.map((action, index) => (

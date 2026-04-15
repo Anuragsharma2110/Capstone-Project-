@@ -28,7 +28,7 @@ const AdminRegister: React.FC = () => {
             await api.post('/auth/register/admin/', formData);
             alert('Admin Registration successful! Please login.');
             navigate('/login');
-        } catch (err: any) {
+        } catch (err) {
             setError('Registration failed. Username might be taken.');
             console.error(err);
         } finally {

@@ -1,30 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../layouts/AdminLayout';
 import { Button } from '../components/ui';
+import axiosInstance from '../utils/axios';
 
 const ProfessorSubmissionReview: React.FC = () => {
     const { teamId } = useParams<{ teamId: string }>();
     const navigate = useNavigate();
     const [feedback, setFeedback] = useState('');
     const [grade, setGrade] = useState('');
+    const [teamDetails, setTeamDetails] = useState<any>(null);
+    const [submissionDetails, setSubmissionDetails] = useState<any>(null);
+    const [submissionHistory, setSubmissionHistory] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const teamRes = await axiosInstance.get(`/teams/${teamId}`);
+                setTeamDetails(teamRes.data);
+                
+                const subRes = await axiosInstance.get(`/submissions/?team=${teamId}`);
+                if (subRes.data && subRes.data.length > 0) {
+                    const sortedSubs = subRes.data.sort((a: any, b: any) => 
+                        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
+                    );
+                    setSubmissionHistory(sortedSubs);
+                    setSubmissionDetails(sortedSubs[0]);
+                }
+            } catch (err) {
+                console.error("Error fetching data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [teamId]);
 
     const handleSaveReview = () => {
-        // Mock save action
         navigate('/professor/submissions');
     };
 
+    if (loading) return <AdminLayout title="Loading..." breadcrumb={[]}><div>Loading...</div></AdminLayout>;
+
     return (
-        <AdminLayout title={`Review: ${teamId || 'Team'}`} breadcrumb={['Dashboard', 'Submissions', teamId || 'Review']}>
+        <AdminLayout title={`Review: ${teamDetails?.name || teamId}`} breadcrumb={['Dashboard', 'Submissions', teamDetails?.name || 'Review']}>
             <div style={{ maxWidth: '1200px', margin: '0 auto', width: '100%', display: 'flex', gap: '2rem' }}>
 
                 {/* Left Side: Document Preview Placeholder */}
                 <div style={{ flex: 2, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Reviewing: {teamId}</h2>
+                        <div>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Reviewing: {teamDetails?.name}</h2>
+                            {submissionHistory.length > 0 && (
+                                <p style={{margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500}}>
+                                    Version {submissionHistory.length} (Latest)
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+                        {/* Team Info Card */}
+                        <div style={{ background: 'var(--bg-main)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-main)', fontWeight: 600 }}>Cohort: <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{teamDetails?.cohort_details?.name || '---'}</span></p>
+                            <p style={{ margin: '0', color: 'var(--text-main)', fontWeight: 600 }}>Members: <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{teamDetails?.members?.length || 0} Learners</span></p>
+                        </div>
 
                         {/* Submitted File Card */}
                         <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
@@ -45,12 +87,12 @@ const ProfessorSubmissionReview: React.FC = () => {
                                         </svg>
                                     </div>
                                     <div>
-                                        <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.95rem' }}>Project_Final_Report.pdf</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>4.2 MB • Submitted 2H AGO</div>
+                                        <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.95rem' }}>{submissionDetails?.file_name || 'Project_Final_Report.pdf'}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Submitted {submissionDetails ? new Date(submissionDetails.submitted_at).toLocaleDateString() : 'N/A'}</div>
                                     </div>
                                 </div>
 
-                                <button style={{
+                                <a href={submissionDetails?.file_url} target="_blank" rel="noopener noreferrer" style={{
                                     background: 'transparent',
                                     border: '1px solid var(--border-color)',
                                     color: 'var(--text-main)',
@@ -62,6 +104,7 @@ const ProfessorSubmissionReview: React.FC = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.5rem',
+                                    textDecoration: 'none',
                                     transition: 'background 0.2s'
                                 }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -70,19 +113,7 @@ const ProfessorSubmissionReview: React.FC = () => {
                                         <line x1="12" y1="15" x2="12" y2="3"></line>
                                     </svg>
                                     Download
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Repository Link Card */}
-                        <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                </svg>
-                                Repository / Live Link
-                            </h3>
+                                </a>
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-main)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

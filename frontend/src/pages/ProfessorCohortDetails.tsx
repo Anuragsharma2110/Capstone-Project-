@@ -61,10 +61,10 @@ const ProfessorCohortDetails: React.FC = () => {
 
     return (
         <AdminLayout title={`Cohort: ${cohort.name}`} breadcrumb={['Dashboard', 'My Cohorts', 'Details']}>
-            <div className="prof-section-card" style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+            <div className="prof-section-card" style={{ width: 'fit-content', minWidth: 'min(100%, 800px)', maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '2.5rem', marginBottom: '2rem' }}>
                     <div>
-                        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>{cohort.name}</h1>
+                        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', lineHeight: 1.2 }}>{cohort.name}</h1>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>{cohort.institution_name}</p>
                     </div>
                     <span style={{
@@ -74,7 +74,10 @@ const ProfessorCohortDetails: React.FC = () => {
                         fontWeight: 700,
                         background: cohort.status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
                         color: cohort.status === 'ACTIVE' ? '#10b981' : '#64748b',
-                        textTransform: 'uppercase'
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        marginTop: '0.5rem'
                     }}>
                         {cohort.status}
                     </span>

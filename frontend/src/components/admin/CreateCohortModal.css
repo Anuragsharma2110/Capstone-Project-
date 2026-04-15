@@ -10,6 +10,7 @@
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    padding: 1.5rem;
 }
 
 .modal-container {
@@ -18,7 +19,10 @@
     border-radius: 16px;
     width: 90%;
     max-width: 500px;
-    padding: 2rem;
+    max-height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 1.75rem;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
@@ -26,7 +30,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
+    flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -61,7 +66,28 @@
 .modal-form {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    margin-bottom: 1.25rem;
+}
+
+/* Custom Scrollbar for the form */
+.modal-form::-webkit-scrollbar {
+    width: 5px;
+}
+
+.modal-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.modal-form::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 10px;
+}
+
+.modal-form::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .form-group {
@@ -83,7 +109,8 @@
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
     padding: 0.75rem 1rem;
     background: var(--bg-main);
     border: 1px solid var(--border-color);
@@ -91,10 +118,22 @@
     color: var(--text-main);
     font-size: 0.9375rem;
     transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.form-group select option {
+    background-color: var(--bg-card);
+    color: var(--text-main);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: var(--primary);
 }
@@ -103,7 +142,7 @@
     display: flex;
     justify-content: flex-end;
     gap: 1rem;
-    margin-top: 1rem;
-    padding-top: 1.5rem;
+    padding-top: 1.25rem;
     border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
 }

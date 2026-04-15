@@ -103,6 +103,7 @@ export default Toast;
 
 // Hook for easy toast management
 let _nextId = 1;
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
     const [toasts, setToasts] = React.useState<ToastMessage[]>([]);
 

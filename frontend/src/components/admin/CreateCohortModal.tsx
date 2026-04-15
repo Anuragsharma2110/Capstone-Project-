@@ -7,14 +7,16 @@ interface CreateCohortModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    cohortId?: number | null;
 }
 
-const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, onSuccess, cohortId }) => {
     const [programName, setProgramName] = useState('');
     const [institutionName, setInstitutionName] = useState('');
     const [startMonth, setStartMonth] = useState('01');
     const [startYear, setStartYear] = useState(new Date().getFullYear());
     const [status, setStatus] = useState('ACTIVE');
+    const [description, setDescription] = useState('');
     const [professorId, setProfessorId] = useState('');
     const [professors, setProfessors] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -23,6 +25,9 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
     useEffect(() => {
         if (isOpen) {
             fetchProfessors();
+            if (cohortId) {
+                fetchCohortDetails(cohortId);
+            }
         } else {
             // Reset form when closed
             setProgramName('');
@@ -30,10 +35,38 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
             setStartMonth('01');
             setStartYear(new Date().getFullYear());
             setStatus('ACTIVE');
+            setDescription('');
             setProfessorId('');
             setError(null);
         }
-    }, [isOpen]);
+    }, [isOpen, cohortId]);
+
+    const fetchCohortDetails = async (id: number) => {
+        setLoading(true);
+        try {
+            const response = await axiosInstance.get(`/cohorts/${id}/`);
+            const data = response.data;
+            setProgramName(data.name);
+            setInstitutionName(data.institution_name);
+            setDescription(data.description || '');
+            setStatus(data.status);
+            setProfessorId(data.professor ? data.professor.toString() : '');
+            
+            // Parse date
+            if (data.start_date) {
+                const parts = data.start_date.split('-');
+                if (parts.length >= 2) {
+                    setStartYear(parseInt(parts[0]));
+                    setStartMonth(parts[1]);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch cohort details for editing', err);
+            setError('Failed to load cohort details.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchProfessors = async () => {
         try {
@@ -58,17 +91,22 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
             const payload = {
                 name: programName,
                 institution_name: institutionName,
+                description,
                 status,
                 start_date: `${startYear}-${startMonth}-01`,
                 professor: professorId || null
             };
 
-            await axiosInstance.post('/cohorts/', payload);
+            if (cohortId) {
+                await axiosInstance.patch(`/cohorts/${cohortId}/`, payload);
+            } else {
+                await axiosInstance.post('/cohorts/', payload);
+            }
             onSuccess();
         } catch (err: any) {
-            console.error('Error creating cohort', err);
+            console.error(cohortId ? 'Error updating cohort' : 'Error creating cohort', err);
 
-            let errorMessage = 'Failed to create cohort. Please try again.';
+            let errorMessage = cohortId ? 'Failed to update cohort.' : 'Failed to create cohort. Please try again.';
             if (err.response?.data) {
                 if (err.response.data.detail) {
                     errorMessage = err.response.data.detail;
@@ -110,7 +148,7 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
         <div className="modal-overlay">
             <div className="modal-container">
                 <div className="modal-header">
-                    <h2>Create New Cohort</h2>
+                    <h2>{cohortId ? 'Edit Cohort' : 'Create New Cohort'}</h2>
                     <button onClick={onClose} className="close-btn">&times;</button>
                 </div>
 
@@ -136,6 +174,16 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
                             onChange={(e) => setInstitutionName(e.target.value)}
                             placeholder="e.g. IITK AI"
                             required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Description</label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Brief overview of this cohort..."
+                            rows={3}
                         />
                     </div>
 
@@ -185,7 +233,7 @@ const CreateCohortModal: React.FC<CreateCohortModalProps> = ({ isOpen, onClose, 
                     <div className="modal-actions">
                         <Button type="button" onClick={onClose} style={{ background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}>Cancel</Button>
                         <Button type="submit" disabled={loading}>
-                            {loading ? 'Creating...' : 'Create Cohort'}
+                            {loading ? (cohortId ? 'Saving...' : 'Creating...') : (cohortId ? 'Save Changes' : 'Create Cohort')}
                         </Button>
                     </div>
                 </form>

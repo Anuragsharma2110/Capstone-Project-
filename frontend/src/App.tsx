@@ -15,6 +15,7 @@ import NominationManagement from './pages/NominationManagement';
 import WeeklyMode from './pages/WeeklyMode';
 import ProfessorGrading from './pages/ProfessorGrading';
 import Tasks from './pages/Tasks';
+import CapstoneGuidelines from './pages/CapstoneGuidelines';
 import Teams from './pages/Teams';
 import Setup from './pages/Setup';
 import CohortsManagement from './pages/CohortsManagement';
@@ -23,13 +24,12 @@ import TeamsManagement from './components/admin/TeamsManagement';
 import Submissions from './pages/Submissions';
 import Feedback from './pages/Feedback';
 import Documents from './pages/Documents';
-import Announcements from './pages/Announcements';
+import Notifications from './pages/Notifications';
 import MyCohorts from './pages/MyCohorts';
 import ProfessorSubmissions from './pages/ProfessorSubmissions';
 import ProfessorSubmissionReview from './pages/ProfessorSubmissionReview';
 import ProfessorCohortDetails from './pages/ProfessorCohortDetails';
-import AdminTaskCreation from './pages/AdminTaskCreation';
-import AdminAnnouncements from './pages/AdminAnnouncements';
+import AdminNotifications from './pages/AdminNotifications';
 import AdminCohortDetails from './pages/AdminCohortDetails';
 
 const AppRoutes: React.FC = () => {
@@ -43,7 +43,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -51,7 +51,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/learner/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -59,7 +59,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -67,7 +67,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -75,7 +75,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/admin/cohorts"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <CohortsManagement />
           </ProtectedRoute>
         }
@@ -83,7 +83,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/programs"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <ProgramCatalog />
           </ProtectedRoute>
         }
@@ -91,7 +91,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/nominations"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <NominationManagement />
           </ProtectedRoute>
         }
@@ -99,7 +99,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/weekly-mode"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <WeeklyMode />
           </ProtectedRoute>
         }
@@ -107,7 +107,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/grading"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <ProfessorGrading />
           </ProtectedRoute>
         }
@@ -115,15 +115,23 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Tasks />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/guidelines"
+        element={
+          <ProtectedRoute allowedRoles={['LEARNER']}>
+            <CapstoneGuidelines />
           </ProtectedRoute>
         }
       />
       <Route
         path="/teams"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER', 'PROFESSOR']}>
             <Teams />
           </ProtectedRoute>
         }
@@ -131,7 +139,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/setup"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Setup />
           </ProtectedRoute>
         }
@@ -139,39 +147,32 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/admin/teams"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <TeamsManagement />
           </ProtectedRoute>
         }
       />
+
       <Route
-        path="/admin/tasks"
+        path="/notifications"
         element={
-          <ProtectedRoute>
-            <AdminTaskCreation />
+          <ProtectedRoute allowedRoles={['LEARNER', 'PROFESSOR']}>
+            <Notifications />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/announcements"
+        path="/admin/notifications"
         element={
-          <ProtectedRoute>
-            <Announcements />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/announcements"
-        element={
-          <ProtectedRoute>
-            <AdminAnnouncements />
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminNotifications />
           </ProtectedRoute>
         }
       />
       <Route
         path="/admin/cohorts/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <AdminCohortDetails />
           </ProtectedRoute>
         }
@@ -179,7 +180,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/admin/projects"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -187,7 +188,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/admin/reports"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -195,7 +196,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/submissions"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Submissions />
           </ProtectedRoute>
         }
@@ -203,7 +204,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/feedback"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Feedback />
           </ProtectedRoute>
         }
@@ -211,7 +212,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/documents"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER', 'PROFESSOR']}>
             <Documents />
           </ProtectedRoute>
         }
@@ -219,7 +220,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/community"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['LEARNER']}>
             <Dashboard />
           </ProtectedRoute>
         }
@@ -227,7 +228,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/cohorts"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <MyCohorts />
           </ProtectedRoute>
         }
@@ -235,7 +236,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/cohorts/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <ProfessorCohortDetails />
           </ProtectedRoute>
         }
@@ -243,7 +244,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/submissions"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <ProfessorSubmissions />
           </ProtectedRoute>
         }
@@ -251,7 +252,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/submissions/:teamId"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <ProfessorSubmissionReview />
           </ProtectedRoute>
         }
@@ -259,7 +260,7 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/professor/reports"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['PROFESSOR']}>
             <Dashboard />
           </ProtectedRoute>
         }

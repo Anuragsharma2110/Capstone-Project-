@@ -1,141 +1,158 @@
-import React from 'react';
-import { Card } from '../components/ui';
+import React, { useState, useEffect } from 'react';
 import AdminLayout from '../layouts/AdminLayout';
+import axiosInstance from '../api/axios';
 
-interface FeedbackItem {
-    id: string;
-    author: string;
-    text: string;
-    time: string;
-    color?: string;
-}
+/* ── Shared card style — uses CSS variables ──────────────── */
+const cardStyle: React.CSSProperties = {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '12px',
+    padding: '24px 28px',
+    marginBottom: '16px',
+};
 
-const dummyFeedback: FeedbackItem[] = [
-    {
-        id: 'f1',
-        author: 'Prof. Julian Vane',
-        text: 'The system architecture diagram is solid. Make sure you address the scalability concerns we discussed in the lab session.',
-        time: '2 hours ago',
-        color: '#2563eb' // Blue
-    },
-    {
-        id: 'f2',
-        author: 'Dr. Sarah Miller',
-        text: 'Excellent work on the UI mockups. The accessibility scores are looking much better this sprint.',
-        time: 'Yesterday',
-        color: '#f59e0b' // Amber/Orange
-    }
-];
-
+/* ── Component ───────────────────────────────────────────── */
 const Feedback: React.FC = () => {
+    const [evaluations, setEvaluations] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        const fetchFeedback = async () => {
+            try {
+                const res = await axiosInstance.get('/evaluations/');
+                setEvaluations(res.data);
+            } catch (err) {
+                console.error("Failed to fetch evaluations", err);
+                setError("Unable to load feedback at this time.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchFeedback();
+    }, []);
+
+    if (loading) {
+        return (
+            <AdminLayout title="Project Feedback" breadcrumb={['Dashboard', 'Faculty Evaluations']}>
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading feedback...</div>
+            </AdminLayout>
+        );
+    }
+
+    if (error) {
+        return (
+            <AdminLayout title="Project Feedback" breadcrumb={['Dashboard', 'Faculty Evaluations']}>
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>{error}</div>
+            </AdminLayout>
+        );
+    }
+
+    if (evaluations.length === 0) {
+        return (
+            <AdminLayout title="Project Feedback" breadcrumb={['Dashboard', 'Faculty Evaluations']}>
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    Your team does not have any evaluations available yet.
+                </div>
+            </AdminLayout>
+        );
+    }
+
     return (
-        <AdminLayout title="Faculty Feedback" breadcrumb={['Dashboard', 'Feedback']}>
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                flex: 1,
-                padding: '2rem 1rem',
-                width: '100%'
-            }}>
-                <div style={{
-                    maxWidth: '1100px',
-                    width: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center'
-                }}>
-                    <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
-                        <h2 style={{ fontSize: '2.25rem', marginBottom: '0.75rem', fontWeight: 800, letterSpacing: '-0.025em' }}>Project Feedback</h2>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '1.125rem', maxWidth: '600px', margin: '0 auto' }}>Review evaluations and comments from your project faculty.</p>
-                    </header>
+        <AdminLayout title="Project Feedback" breadcrumb={['Dashboard', 'Faculty Evaluations']}>
+            <div style={{ width: '100%', padding: '32px 40px', boxSizing: 'border-box' }}>
 
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
-                        gap: '2rem'
-                    }}>
-                        {dummyFeedback.map((item) => (
-                            <Card key={item.id} style={{
-                                padding: '2.5rem',
-                                borderLeft: `5px solid ${item.color || 'var(--primary)'}`,
-                                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
-                                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                                cursor: 'default',
-                                background: 'var(--bg-card)',
-                                height: '100%',
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                                        <div style={{
-                                            width: '48px',
-                                            height: '48px',
-                                            borderRadius: '12px',
-                                            background: `${item.color}15`,
-                                            color: item.color,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontWeight: 800,
-                                            fontSize: '1.125rem',
-                                            boxShadow: `inset 0 0 0 1px ${item.color}30`
-                                        }}>
-                                            {item.author.split(' ').pop()?.charAt(0)}
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <div style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--text-main)' }}>
-                                                {item.author}
+                {/* Page header */}
+                <header style={{ marginBottom: '28px' }}>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+                        Project Feedback
+                    </h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: 0 }}>
+                        Review evaluations and comments from your project faculty.
+                    </p>
+                </header>
+
+                <div style={{ maxWidth: '860px', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    {evaluations.map((evaluation, index) => {
+                        const prof = evaluation.evaluator_details;
+                        const sub = evaluation.submission_details;
+                        
+                        return (
+                            <div key={evaluation.id} style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '2rem', borderBottom: index < evaluations.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                                {/* ── Section 1: Score Breakdown ─────────────────────── */}
+                                <div style={cardStyle}>
+                                    {/* Professor header */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{
+                                                width: '44px', height: '44px', borderRadius: '50%',
+                                                background: 'rgba(37,99,235,0.15)', color: '#60a5fa',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontWeight: 700, fontSize: '1.1rem', flexShrink: 0,
+                                            }}>
+                                                {prof && prof.first_name ? `${prof.first_name[0]}${prof.last_name[0]}` : '👤'}
                                             </div>
-                                            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', fontWeight: 500 }}>Project Faculty</div>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                                                    {prof ? `Prof. ${prof.first_name} ${prof.last_name}` : 'Unknown Faculty'}
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '1px' }}>Project Faculty</div>
+                                            </div>
                                         </div>
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            Evaluated: {new Date(evaluation.evaluated_at).toLocaleDateString()}
+                                        </span>
                                     </div>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 600, background: 'var(--bg-secondary)', padding: '4px 12px', borderRadius: '20px' }}>{item.time}</span>
-                                </div>
-                                <div style={{
-                                    position: 'relative',
-                                    padding: '1.5rem 2rem',
-                                    background: 'rgba(255, 255, 255, 0.02)',
-                                    borderRadius: '16px',
-                                    border: '1px solid var(--border-color)',
-                                    flex: 1
-                                }}>
-                                    <span style={{
-                                        position: 'absolute',
-                                        left: '0.75rem',
-                                        top: '0.5rem',
-                                        fontSize: '3rem',
-                                        opacity: 0.1,
-                                        fontFamily: 'serif',
-                                        color: item.color
-                                    }}>"</span>
-                                    <p style={{
-                                        fontSize: '1.125rem',
-                                        color: 'var(--text-main)',
-                                        lineHeight: '1.75',
-                                        fontStyle: 'italic',
-                                        margin: 0,
-                                        position: 'relative',
-                                        zIndex: 1
-                                    }}>
-                                        {item.text}
-                                    </p>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
 
-                    {dummyFeedback.length === 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                            <Card style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed var(--border-color)', background: 'transparent', maxWidth: '600px', width: '100%' }}>
-                                <div style={{ fontSize: '4rem', marginBottom: '1.5rem', opacity: 0.5 }}>💬</div>
-                                <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>No feedback yet</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Your project feedback will appear here as soon as faculty provides it.</p>
-                            </Card>
-                        </div>
-                    )}
+                                    {/* Team badge */}
+                                    {sub && sub.team_details && (
+                                        <div style={{ marginBottom: '20px' }}>
+                                            <span style={{
+                                                display: 'inline-block', fontSize: '0.78rem', fontWeight: 600,
+                                                color: '#60a5fa', background: 'rgba(37,99,235,0.1)',
+                                                border: '1px solid rgba(37,99,235,0.2)', borderRadius: '6px',
+                                                padding: '3px 10px',
+                                            }}>
+                                                {sub.team_details.name} · {sub.team_details.cohort_details?.name || 'Cohort'}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <span style={{ fontSize: '0.865rem', color: 'var(--text-secondary)', flexShrink: 0, width: '100px' }}>
+                                            Final Grade
+                                        </span>
+                                        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '99px', overflow: 'hidden' }}>
+                                            <div style={{
+                                                width: `${Math.min(Math.max((Number(evaluation.score) || 0), 0), 100)}%`,
+                                                height: '100%', background: '#2563eb', borderRadius: '99px',
+                                            }} />
+                                        </div>
+                                        <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', width: '60px', textAlign: 'right', flexShrink: 0 }}>
+                                            {evaluation.score} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)'}}>/ 100</span>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* ── Section 2: Faculty Feedback ────────────────────── */}
+                                <div style={cardStyle}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 20px 0' }}>
+                                        Faculty Feedback
+                                    </h3>
+
+                                    <div style={{
+                                        borderLeft: '3px solid var(--primary)', background: 'rgba(67, 56, 202, 0.05)',
+                                        borderRadius: '0 8px 8px 0', padding: '20px',
+                                        color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.6',
+                                        whiteSpace: 'pre-line' /* preserves formatting from Professor input */
+                                    }}>
+                                        {evaluation.feedback || 'No written feedback was provided.'}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+
                 </div>
             </div>
         </AdminLayout>

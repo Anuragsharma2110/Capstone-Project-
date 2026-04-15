@@ -60,10 +60,11 @@ const Settings: React.FC = () => {
             if (response.data) {
                 login(response.data);
             }
-        } catch (err: any) {
+        } catch (err) {
+            const e = err as { response?: { data?: { detail?: string } } };
             setProfileMessage({
                 type: 'error',
-                text: err.response?.data?.detail || 'Failed to update profile. Please try again.'
+                text: e.response?.data?.detail || 'Failed to update profile. Please try again.'
             });
         } finally {
             setProfileLoading(false);
@@ -88,10 +89,11 @@ const Settings: React.FC = () => {
             });
             setPasswordMessage({ type: 'success', text: 'Password successfully updated.' });
             setFormData({ old_password: '', new_password: '', confirm_password: '' });
-        } catch (err: any) {
+        } catch (err) {
+            const e = err as { response?: { data?: { detail?: string; old_password?: string[] } } };
             setPasswordMessage({
                 type: 'error',
-                text: err.response?.data?.old_password?.[0] || err.response?.data?.detail || 'Failed to update password.'
+                text: e.response?.data?.old_password?.[0] || e.response?.data?.detail || 'Failed to update password.'
             });
         } finally {
             setPasswordLoading(false);

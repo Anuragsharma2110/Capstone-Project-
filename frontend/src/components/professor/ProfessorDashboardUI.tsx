@@ -1,26 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../api/axios';
 import './ProfessorDashboardUI.css';
 
 const ProfessorDashboardUI: React.FC = () => {
     const { user } = useAuth();
-    const navigate = useNavigate();
     const firstName = user?.first_name || user?.username || 'Professor';
 
-    const [stats, setStats] = useState({ cohorts: 0, pendingEvals: 14, avgProgress: 72 });
+    const [stats, setStats] = useState({ cohorts: 0, pendingEvals: 0, avgProgress: 0 });
+    const [upcomingTasks, setUpcomingTasks] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchDashboardData = async () => {
             try {
-                const cohortsRes = await axiosInstance.get('/cohorts/');
-                setStats(prev => ({ ...prev, cohorts: cohortsRes.data.length }));
+                const [cohortsRes, tasksRes, teamsRes, subsRes] = await Promise.all([
+                    axiosInstance.get('/cohorts/'),
+                    axiosInstance.get('/tasks/'),
+                    axiosInstance.get('/teams/'),
+                    axiosInstance.get('/submissions/')
+                ]);
+                const cohorts = cohortsRes.data;
+                const tasks = tasksRes.data;
+                const teams = teamsRes.data;
+                const submissions = subsRes.data;
+
+                const pendingCount = submissions.filter((s: any) => !s.has_evaluations).length;
+
+                const expectedSubmissions = teams.length * tasks.length;
+                let calculatedProgress = 0;
+                if (expectedSubmissions > 0) {
+                    calculatedProgress = Math.min(100, Math.round((submissions.length / expectedSubmissions) * 100));
+                }
+
+                setStats({
+                    cohorts: cohorts.length,
+                    pendingEvals: pendingCount,
+                    avgProgress: calculatedProgress
+                });
+
+                const now = new Date();
+                const upcoming = tasks
+                    .filter((t: any) => new Date(t.deadline) > now)
+                    .map((t: any) => {
+                        const cohort = cohorts.find((c: any) => c.id === t.cohort);
+                        return {
+                            ...t,
+                            cohortName: cohort ? cohort.name : 'Unknown Cohort'
+                        };
+                    })
+                    .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+                    .slice(0, 5); // Display next 5 upcoming deadlines
+                
+                setUpcomingTasks(upcoming);
+
             } catch (err) {
-                console.error("Failed to fetch professor stats", err);
+                console.error("Failed to fetch professor dashboard data", err);
             }
         };
-        fetchStats();
+        fetchDashboardData();
     }, []);
 
     return (
@@ -57,8 +94,7 @@ const ProfessorDashboardUI: React.FC = () => {
                     <div className="prof-stat-info">
                         <span className="prof-stat-label">Pending Evaluations</span>
                         <div className="prof-stat-value">
-                            14
-                            <span className="prof-stat-sub">+5% from last week</span>
+                            {stats.pendingEvals}
                         </div>
                     </div>
                     <div className="prof-stat-icon">
@@ -76,10 +112,10 @@ const ProfessorDashboardUI: React.FC = () => {
                 <div className="prof-stat-card">
                     <div className="prof-stat-info">
                         <span className="prof-stat-label">Average Team Progress</span>
-                        <div className="prof-stat-value">72%</div>
+                        <div className="prof-stat-value">{stats.avgProgress}%</div>
                         <div className="prof-stat-progress">
                             <div className="prof-stat-progress-bar">
-                                <div className="prof-stat-progress-fill" style={{ width: '72%' }}></div>
+                                <div className="prof-stat-progress-fill" style={{ width: `${stats.avgProgress}%` }}></div>
                             </div>
                         </div>
                     </div>
@@ -95,65 +131,6 @@ const ProfessorDashboardUI: React.FC = () => {
             {/* Main Layout */}
             <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: '2rem' }}>
 
-                {/* To-Do: Needs Review */}
-                <div className="needs-review-card">
-                    <div className="needs-review-header">
-                        <h2 className="needs-review-title">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                                <path d="M9 14l2 2 4-4" />
-                            </svg>
-                            To-Do: Needs Review
-                        </h2>
-                        <span className="review-count-badge">12</span>
-                    </div>
-
-                    <div className="needs-review-horizontal-container">
-                        {[
-                            { team: 'Team Alpha', doc: 'Final Project Proposal', time: '2H AGO', avatars: 3 },
-                            { team: 'Team Quantum', doc: 'System Architecture Diagram', time: '5H AGO', avatars: 2 },
-                            { team: 'Team Nova', doc: 'UI/UX Mockups Prototype', time: '8H AGO', avatars: 2 },
-                        ].map((item, i, arr) => (
-                            <div className="review-item horizontal" key={i} style={{ borderRight: i < arr.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
-                                <div className="review-item-header">
-                                    <span className="review-team-name">{item.team}</span>
-                                    <span className="review-time">{item.time}</span>
-                                </div>
-                                <div className="review-item-doc">{item.doc}</div>
-                                <div className="review-item-footer">
-                                    <div className="reviewer-avatars">
-                                        {[...Array(Math.min(item.avatars, 2))].map((_, j) => (
-                                            <img
-                                                key={j}
-                                                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${item.team}${j}`}
-                                                className="reviewer-avatar"
-                                                alt="reviewer"
-                                            />
-                                        ))}
-                                        {item.avatars > 2 && (
-                                            <div className="extra-reviewers">+{item.avatars - 2}</div>
-                                        )}
-                                    </div>
-                                    <button
-                                        className="review-btn"
-                                        onClick={() => navigate(`/professor/submissions/${encodeURIComponent(item.team)}`)}
-                                    >
-                                        Review
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <button
-                        onClick={() => navigate('/professor/submissions')}
-                        className="view-all-submissions-link"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}
-                    >
-                        View All Submissions
-                    </button>
-                </div>
 
                 {/* Upcoming Deadlines */}
                 <div className="deadlines-card">
@@ -167,21 +144,30 @@ const ProfessorDashboardUI: React.FC = () => {
                         <h2 className="deadlines-title">Upcoming Deadlines</h2>
                     </div>
 
-                    {[
-                        { month: 'OCT', day: '24', name: 'Mid-semester Report', detail: '11:59 PM • All Teams' },
-                        { month: 'OCT', day: '27', name: 'Peer Review Cycle #2', detail: 'Starting 9:00 AM' },
-                    ].map((d, i) => (
-                        <div className="deadline-item" key={i}>
-                            <div className="deadline-date-block">
-                                <span className="deadline-month">{d.month}</span>
-                                <span className="deadline-day">{d.day}</span>
+                    {upcomingTasks.length > 0 ? upcomingTasks.map((t, i) => {
+                        const d = new Date(t.deadline);
+                        const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                        const day = d.getDate().toString();
+                        const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const detail = `${time} • All Teams • ${t.cohortName}`;
+                        
+                        return (
+                            <div className="deadline-item" key={i}>
+                                <div className="deadline-date-block">
+                                    <span className="deadline-month">{month}</span>
+                                    <span className="deadline-day">{day}</span>
+                                </div>
+                                <div className="deadline-info">
+                                    <span className="deadline-name">{t.title}</span>
+                                    <span className="deadline-detail">{detail}</span>
+                                </div>
                             </div>
-                            <div className="deadline-info">
-                                <span className="deadline-name">{d.name}</span>
-                                <span className="deadline-detail">{d.detail}</span>
-                            </div>
+                        );
+                    }) : (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            No upcoming deadlines for your assigned cohorts.
                         </div>
-                    ))}
+                    )}
                 </div>
 
             </div>

@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import './AdminComponents.css';
 
 interface HeaderProps {
@@ -9,18 +11,66 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ breadcrumb }) => {
     const { theme, toggleTheme } = useTheme();
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
+    const handleNotificationClick = () => {
+        if (user?.role === 'ADMIN') {
+            navigate('/admin/notifications');
+        } else {
+            navigate('/notifications');
+        }
+    };
+
+    const getBreadcrumbPath = (item: string) => {
+        const role = user?.role;
+        const lower = item.toLowerCase();
+        
+        if (lower === 'dashboard') {
+            if (role === 'ADMIN') return '/admin/dashboard';
+            if (role === 'PROFESSOR') return '/professor/dashboard';
+            return '/learner/dashboard';
+        }
+        if (lower.includes('submissions')) {
+            if (role === 'PROFESSOR') return '/professor/submissions';
+            return '/submissions';
+        }
+        if (lower.includes('cohorts')) {
+            if (role === 'ADMIN') return '/admin/cohorts';
+            if (role === 'PROFESSOR') return '/professor/cohorts';
+        }
+        if (lower === 'teams') {
+            if (role === 'ADMIN') return '/admin/teams';
+        }
+        return null; // non-clickable if path not defined
+    };
 
     return (
         <header className="admin-header">
             <div className="header-left">
                 {breadcrumb && (
                     <div className="breadcrumb">
-                        {breadcrumb.map((item, index) => (
-                            <React.Fragment key={index}>
-                                <span className={index === breadcrumb.length - 1 ? 'breadcrumb-current' : 'breadcrumb-prev'}>{item}</span>
-                                {index < breadcrumb.length - 1 && <span className="breadcrumb-separator">›</span>}
-                            </React.Fragment>
-                        ))}
+                        {breadcrumb.map((item, index) => {
+                            const isLast = index === breadcrumb.length - 1;
+                            const path = !isLast ? getBreadcrumbPath(item) : null;
+                            
+                            return (
+                                <React.Fragment key={index}>
+                                    {isLast ? (
+                                        <span className="breadcrumb-current">{item}</span>
+                                    ) : (
+                                        <span 
+                                            className={`breadcrumb-prev ${path ? 'clickable' : ''}`}
+                                            style={path ? { cursor: 'pointer' } : {}}
+                                            onClick={() => path && navigate(path)}
+                                        >
+                                            {item}
+                                        </span>
+                                    )}
+                                    {!isLast && <span className="breadcrumb-separator">›</span>}
+                                </React.Fragment>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -35,7 +85,18 @@ const Header: React.FC<HeaderProps> = ({ breadcrumb }) => {
 
                 <div className="header-actions">
                     <button
-                        className="icon-button notification-btn"
+                        className="icon-button notification-bell-btn"
+                        onClick={handleNotificationClick}
+                        title="View Notifications"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                    </button>
+
+                    <button
+                        className="icon-button theme-toggle-btn"
                         onClick={toggleTheme}
                         title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
                     >

@@ -65,6 +65,7 @@ class Cohort(models.Model):
     end_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    handbook = models.FileField(upload_to="handbooks/", null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -83,6 +84,7 @@ class CohortMembership(models.Model):
 class Team(models.Model):
     name = models.CharField(max_length=255)
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='teams')
+    is_final_submitted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -124,7 +126,8 @@ class Task(models.Model):
 class Submission(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='submissions')
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='submissions')
-    file_url = models.URLField(blank=True, null=True) # Or FileField if using real storage
+    file_url = models.URLField(blank=True, null=True) # Repo link
+    document = models.FileField(upload_to='submissions/', blank=True, null=True) # Actual upload
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -134,23 +137,30 @@ class Evaluation(models.Model):
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name='evaluations')
     evaluator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='evaluations_given')
     score = models.PositiveIntegerField() # e.g., 0-100
-    feedback = models.TextField()
+    feedback = models.TextField(blank=True, null=True)
     evaluated_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Evaluation for {self.submission}"
 
-class Announcement(models.Model):
+class Notification(models.Model):
     class Audience(models.TextChoices):
         ALL = 'ALL', _('All Users')
         PROFESSORS = 'PROFESSORS', _('Professors Only')
         LEARNERS = 'LEARNERS', _('Learners Only')
 
+    class Category(models.TextChoices):
+        MESSAGE = 'MESSAGE', _('Message')
+        SESSION = 'SESSION', _('Session')
+        ERROR = 'ERROR', _('Error')
+        SYSTEM = 'SYSTEM', _('System')
+
     title = models.CharField(max_length=255)
     message = models.TextField()
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='announcements')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     audience = models.CharField(max_length=20, choices=Audience.choices, default=Audience.ALL)
-    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='announcements', null=True, blank=True)
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.SYSTEM)
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -158,3 +168,30 @@ class Announcement(models.Model):
 
     def __str__(self):
         return self.title
+
+class NotificationRead(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications_read')
+    notification = models.ForeignKey(Notification, on_delete=models.CASCADE, related_name='read_by')
+    read_at = models.DateTimeField(auto_now_add=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('user', 'notification')
+
+    def __str__(self):
+        return f"{self.user.username} read {self.notification.title}"
+
+class CohortMilestone(models.Model):
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='milestones')
+    title = models.CharField(max_length=255)
+    due_date = models.DateField()
+    order_index = models.PositiveIntegerField(default=0)
+    is_final_submission = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order_index', 'due_date']
+        
+    def __str__(self):
+        return f"{self.cohort.name} - {self.title}"

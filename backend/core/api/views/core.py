@@ -5,15 +5,18 @@ from rest_framework.parsers import MultiPartParser, FormParser
 import random
 import csv
 import io
+import pandas as pd
+from django.utils import timezone
+from datetime import timedelta
 from core.models import (
     Program, Nomination, Cohort, CohortMembership,
-    Team, TeamMember, Task, Submission, Evaluation, WeeklyProgress, Announcement, User
+    Team, TeamMember, Task, Submission, Evaluation, WeeklyProgress, Notification, NotificationRead, User, CohortMilestone
 )
 from core.api.serializers.core import (
     ProgramSerializer, NominationSerializer, CohortSerializer,
     CohortMembershipSerializer, TeamSerializer, TeamMemberSerializer,
     TaskSerializer, SubmissionSerializer, EvaluationSerializer, WeeklyProgressSerializer,
-    AnnouncementSerializer, UserSimpleSerializer
+    NotificationSerializer, UserSimpleSerializer, CohortMilestoneSerializer
 )
 from core.permissions import (
     IsAdmin, IsProfessor, IsLearner,
@@ -64,6 +67,42 @@ class CohortViewSet(viewsets.ModelViewSet):
     serializer_class = CohortSerializer
     queryset = Cohort.objects.all()
     permission_classes = [IsAdminOrReadOnly]
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAdmin])
+    def dashboard_stats(self, request):
+        """Return global stats for the admin dashboard with diagnostic info."""
+        today = timezone.now().date()
+        next_week = today + timedelta(days=7)
+
+        # DIAGNOSTIC: Total counts without filters
+        all_users_count = User.objects.count()
+        all_cohorts_count = Cohort.objects.count()
+        unique_roles = list(User.objects.values_list('role', flat=True).distinct())
+        unique_statuses = list(Cohort.objects.values_list('status', flat=True).distinct())
+
+        # Corrected / Updated filters
+        total_students = User.objects.filter(role__iexact='LEARNER').count()
+        active_cohorts = Cohort.objects.exclude(status='ARCHIVED').count()
+        
+        # New Metrics
+        total_faculty = User.objects.filter(role__iexact='PROFESSOR').count()
+        upcoming_deadlines = CohortMilestone.objects.filter(
+            due_date__range=[today, next_week]
+        ).count()
+
+        return Response({
+            "total_students": total_students,
+            "active_cohorts": active_cohorts,
+            "total_faculty": total_faculty,
+            "upcoming_deadlines": upcoming_deadlines,
+            # Diagnostic fields
+            "debug": {
+                "all_users": all_users_count,
+                "all_cohorts": all_cohorts_count,
+                "roles_found": unique_roles,
+                "statuses_found": unique_statuses
+            }
+        })
 
     def get_queryset(self):
         user = self.request.user
@@ -283,6 +322,8 @@ class CohortViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin], parser_classes=[MultiPartParser, FormParser])
     def upload_learners(self, request, pk=None):
         from django.db import transaction
+        import random
+        import string
         
         cohort = self.get_object()
         file_obj = request.FILES.get('file')
@@ -290,51 +331,89 @@ class CohortViewSet(viewsets.ModelViewSet):
         if not file_obj:
             return Response({"detail": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not file_obj.name.endswith('.csv'):
-            return Response({"detail": "Invalid file format. Please upload a .csv file."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Basic size limit (e.g., 5MB)
         if file_obj.size > 5 * 1024 * 1024:
             return Response({"detail": "File too large. Maximum size is 5MB."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            decoded_file = file_obj.read().decode('utf-8')
-            io_string = io.StringIO(decoded_file)
-            reader = csv.DictReader(io_string)
+            filename = file_obj.name.lower()
+            if filename.endswith('.csv'):
+                df = pd.read_csv(file_obj)
+            elif filename.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file_obj)
+            else:
+                return Response({"detail": "Unsupported file format. Please upload a .csv or Excel file."}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Case-insensitive column search for 'email'
-            fieldnames = [field.strip().lower() for field in (reader.fieldnames or [])]
-            if 'email' not in fieldnames:
-                 return Response({"detail": "CSV must contain an 'email' column."}, status=status.HTTP_400_BAD_REQUEST)
+            # Find essential columns (case-insensitive)
+            email_col = next((c for c in df.columns if 'email' in str(c).lower()), None)
+            first_name_col = next((c for c in df.columns if 'first' in str(c).lower() or 'name' == str(c).lower()), None)
+            last_name_col = next((c for c in df.columns if 'last' in str(c).lower()), None)
             
-            # Map original fieldnames to lowered ones for extraction
-            reader.fieldnames = fieldnames
-
-            emails_to_process = set()
-            for row in reader:
-                email = row.get('email', '').strip().lower()
-                if email:
-                    emails_to_process.add(email)
+            if not email_col:
+                 return Response({"detail": "File must contain an 'email' column."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Unique emails from the found column
+            emails_to_process = set(df[email_col].dropna().astype(str).str.strip().str.lower())
+            emails_to_process = {e for e in emails_to_process if e}
 
             if not emails_to_process:
-                return Response({"detail": "No valid emails found in the CSV."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "No valid emails found in the file."}, status=status.HTTP_400_BAD_REQUEST)
 
             assigned_count = 0
             overwritten_count = 0
+            created_count = 0
             failed_emails = []
 
+            default_password = "Welcome123!"
+
             with transaction.atomic():
-                for email in emails_to_process:
+                for _, row in df.iterrows():
+                    email = str(row[email_col]).strip().lower()
+                    if not email or email == 'nan':
+                        continue
+                    
                     try:
-                        user = User.objects.get(email__iexact=email, role='LEARNER')
+                        # 1. Try to find existing learner
+                        user = User.objects.filter(email__iexact=email).first()
                         
-                        # Check existing membership
+                        if not user:
+                            # 2. Create new learner if not found
+                            # Extract names if cols exist, otherwise use parts of email
+                            f_name = str(row[first_name_col]).strip() if first_name_col and str(row[first_name_col]) != 'nan' else ""
+                            l_name = str(row[last_name_col]).strip() if last_name_col and str(row[last_name_col]) != 'nan' else ""
+                            
+                            # If only one "Name" column exists, split it
+                            if f_name and not l_name and " " in f_name:
+                                parts = f_name.split(" ", 1)
+                                f_name, l_name = parts[0], parts[1]
+
+                            # Generate a unique username
+                            base_username = email.split('@')[0].replace('.', '_')
+                            username = base_username
+                            counter = 1
+                            while User.objects.filter(username=username).exists():
+                                username = f"{base_username}{counter}"
+                                counter += 1
+                            
+                            user = User.objects.create_user(
+                                username=username,
+                                email=email,
+                                password=default_password,
+                                first_name=f_name,
+                                last_name=l_name,
+                                role='LEARNER'
+                            )
+                            created_count += 1
+                        
+                        if user.role != 'LEARNER':
+                            failed_emails.append(f"{email} (User exists but role is {user.role})")
+                            continue
+                        
+                        # 3. Handle membership
                         existing_membership = CohortMembership.objects.filter(user=user).first()
                         
                         if existing_membership:
                             if existing_membership.cohort == cohort:
-                                # Already in this cohort, skip
-                                continue
+                                continue # Already in this cohort
                             else:
                                 # Reassign and count as overwrite
                                 existing_membership.cohort = cohort
@@ -346,19 +425,185 @@ class CohortViewSet(viewsets.ModelViewSet):
                             CohortMembership.objects.create(user=user, cohort=cohort)
                             assigned_count += 1
 
-                    except User.DoesNotExist:
-                        failed_emails.append(email)
+                    except Exception as e:
+                        failed_emails.append(f"{email} ({str(e)})")
 
             return Response({
                 "assigned_count": assigned_count,
                 "overwritten_count": overwritten_count,
+                "created_count": created_count,
                 "failed_count": len(failed_emails),
                 "failed_emails": failed_emails,
-                "detail": f"Processed {len(emails_to_process)} unique emails. Assigned: {assigned_count}. Failed: {len(failed_emails)}."
+                "detail": f"Processed {len(emails_to_process)} unique emails. Created: {created_count}. Assigned: {assigned_count}. Failed: {len(failed_emails)}."
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"detail": f"Error processing file: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def clear_learners(self, request, pk=None):
+        """Remove all learners from this cohort, optionally deleting their accounts."""
+        from django.db import transaction
+        cohort = self.get_object()
+        delete_accounts = request.data.get('delete_accounts', False)
+        
+        memberships = CohortMembership.objects.filter(cohort=cohort)
+        users_to_check = [m.user for m in memberships]
+        count = memberships.count()
+        deleted_count = 0
+        
+        try:
+            with transaction.atomic():
+                memberships.delete()
+                if delete_accounts:
+                    for user in users_to_check:
+                        # Only delete learners who are not in any OTHER cohorts and not assigned to any team in OTHER cohorts
+                        # (Checking memberships is enough since cohort membership is required for team assignment)
+                        if user.role == 'LEARNER' and not CohortMembership.objects.filter(user=user).exists():
+                            user.delete()
+                            deleted_count += 1
+            
+            msg = f"Successfully removed {count} learners from cohort."
+            if delete_accounts:
+                msg += f" Deleted {deleted_count} learner accounts entirely."
+            
+            return Response({"detail": msg}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": f"Error clearing learners: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # ──────────────────────────────────────────────────────────────────────
+    # TEAM PERFORMANCES (Admin Dashboard)
+    # ──────────────────────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdmin])
+    def team_performances(self, request, pk=None):
+        """Return teams in this cohort with members and final submission state."""
+        cohort = self.get_object()
+        teams = Team.objects.filter(cohort=cohort).prefetch_related('members__user')
+        milestones = CohortMilestone.objects.filter(cohort=cohort).order_by('order_index', 'due_date')
+
+        teams_data = []
+        for team in teams:
+            members = []
+            for tm in team.members.all():
+                u = tm.user
+                members.append({
+                    'id': u.id,
+                    'username': u.username,
+                    'first_name': u.first_name,
+                    'last_name': u.last_name,
+                    'email': u.email,
+                })
+            teams_data.append({
+                'id': team.id,
+                'name': team.name,
+                'is_final_submitted': team.is_final_submitted,
+                'members': members,
+            })
+
+        milestones_data = CohortMilestoneSerializer(milestones, many=True).data
+
+        professor_data = None
+        if cohort.professor:
+            professor_data = {
+                'first_name': cohort.professor.first_name,
+                'last_name': cohort.professor.last_name,
+                'email': cohort.professor.email,
+            }
+
+        return Response({
+            'cohort_id': cohort.id,
+            'cohort_name': cohort.name,
+            'professor': professor_data,
+            'milestones': milestones_data,
+            'teams': teams_data,
+        })
+
+    # ──────────────────────────────────────────────────────────────────────
+    # HANDBOOK ACTIONS
+    # ──────────────────────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin],
+            parser_classes=[MultiPartParser, FormParser])
+    def upload_handbook(self, request, pk=None):
+        """Admin uploads (or replaces) the cohort handbook (PDF/Doc)."""
+        import os
+        cohort = self.get_object()
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({"detail": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_extensions = ['.pdf', '.doc', '.docx']
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        if ext not in allowed_extensions:
+            return Response(
+                {"detail": f"Unsupported file type '{ext}'. Allowed: {', '.join(allowed_extensions)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Delete existing file to avoid orphaned files on disk
+        if cohort.handbook:
+            try:
+                if os.path.isfile(cohort.handbook.path):
+                    os.remove(cohort.handbook.path)
+            except Exception:
+                pass
+
+        cohort.handbook = uploaded
+        cohort.save(update_fields=['handbook'])
+
+        return Response({
+            "detail": f"Handbook '{uploaded.name}' uploaded successfully.",
+            "handbook_name": uploaded.name,
+            "handbook_url": request.build_absolute_uri(cohort.handbook.url),
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def download_handbook(self, request, pk=None):
+        """
+        Serve the cohort handbook for download.
+        Learners can only access handbooks for cohorts they belong to.
+        Admins and Professors can access any.
+        """
+        import os
+        from django.http import FileResponse
+        cohort = self.get_object()
+
+        if request.user.role == 'LEARNER':
+            if not CohortMembership.objects.filter(user=request.user, cohort=cohort).exists():
+                return Response(
+                    {"detail": "You are not a member of this cohort."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        if not cohort.handbook:
+            return Response({"detail": "No handbook has been uploaded for this cohort yet."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_path = cohort.handbook.path
+        if not os.path.isfile(file_path):
+            return Response({"detail": "Handbook file not found on server."}, status=status.HTTP_404_NOT_FOUND)
+
+        filename = os.path.basename(file_path)
+        response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
+        return response
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAdmin])
+    def delete_handbook(self, request, pk=None):
+        """Admin removes the cohort handbook."""
+        import os
+        cohort = self.get_object()
+        if not cohort.handbook:
+            return Response({"detail": "No handbook to delete."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            if os.path.isfile(cohort.handbook.path):
+                os.remove(cohort.handbook.path)
+        except Exception:
+            pass
+
+        cohort.handbook = None
+        cohort.save(update_fields=['handbook'])
+        return Response({"detail": "Handbook removed successfully."}, status=status.HTTP_200_OK)
 
 
 class CohortMembershipViewSet(viewsets.ModelViewSet):
@@ -381,11 +626,21 @@ class TeamViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
 
     def get_queryset(self):
+        user = self.request.user
         qs = Team.objects.all()
+
+        if user.is_authenticated:
+            if user.role == 'LEARNER':
+                # Learners only see team(s) they are members of
+                qs = qs.filter(members__user=user)
+            elif user.role == 'PROFESSOR':
+                # Professors only see teams in their cohorts
+                qs = qs.filter(cohort__professor=user)
+
         cohort_id = self.request.query_params.get('cohort')
         if cohort_id:
             qs = qs.filter(cohort_id=cohort_id)
-        return qs
+        return qs.distinct()
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def assign_learner(self, request, pk=None):
@@ -485,6 +740,79 @@ class TeamViewSet(viewsets.ModelViewSet):
 
         return Response({"detail": "Learner removed from team successfully."}, status=status.HTTP_200_OK)
 
+    from rest_framework.parsers import MultiPartParser, FormParser
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated], parser_classes=[MultiPartParser, FormParser])
+    def submit_final(self, request, pk=None):
+        """Mark a team's final submission as completed and upload associated document."""
+        team = self.get_object()
+        user = request.user
+
+        # Allow admin or actual team member
+        if user.role != 'ADMIN' and not user.is_staff:
+            if not TeamMember.objects.filter(team=team, user=user).exists():
+                return Response(
+                    {"detail": "You are not a member of this team."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # First try to find an existing Task for this cohort
+        task = Task.objects.filter(cohort=team.cohort).order_by('-deadline').first()
+
+        # If no Task exists, auto-create one from the final CohortMilestone
+        if not task:
+            from core.models import CohortMilestone
+            from django.utils import timezone
+            milestone = CohortMilestone.objects.filter(
+                cohort=team.cohort, is_final_submission=True
+            ).first()
+            if not milestone:
+                # Fall back to the latest milestone
+                milestone = CohortMilestone.objects.filter(
+                    cohort=team.cohort
+                ).order_by('-due_date').first()
+            if milestone:
+                task = Task.objects.create(
+                    title=milestone.title,
+                    description=f"Auto-created from milestone: {milestone.title}",
+                    cohort=team.cohort,
+                    deadline=timezone.make_aware(
+                        timezone.datetime.combine(milestone.due_date, timezone.datetime.max.time())
+                    ) if timezone.is_naive(
+                        timezone.datetime.combine(milestone.due_date, timezone.datetime.max.time())
+                    ) else timezone.datetime.combine(milestone.due_date, timezone.datetime.max.time()),
+                )
+            else:
+                return Response({"detail": "No active tasks or milestones found to submit against."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if the latest submission for this task is already evaluated
+        latest_submission = Submission.objects.filter(team=team, task=task).order_by('-submitted_at').first()
+        if latest_submission and latest_submission.evaluations.exists():
+            return Response(
+                {"detail": "This submission has been reviewed and is now locked for changes. Please contact your professor if you need to submit a new version."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Create a new version of the submission
+        submission = Submission(
+            team=team,
+            task=task
+        )
+
+        repo_link = request.data.get('repoLink')
+        if repo_link:
+            submission.file_url = repo_link
+
+        file_obj = request.FILES.get('document')
+        if file_obj:
+            submission.document = file_obj
+
+        submission.save()
+
+        team.is_final_submitted = True
+        team.save(update_fields=['is_final_submitted'])
+        return Response({"detail": "Final submission marked as completed.", "is_final_submitted": True}, status=status.HTTP_200_OK)
+
 
 class TeamMemberViewSet(viewsets.ModelViewSet):
     """
@@ -542,6 +870,20 @@ class SubmissionViewSet(viewsets.ModelViewSet):
         # list, retrieve, update: professor, admin, and learner (own team)
         return [permissions.IsAuthenticated()]
 
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if not user.is_authenticated:
+            return qs.none()
+            
+        if user.role == 'ADMIN' or user.is_staff:
+            return qs
+        elif user.role == 'PROFESSOR':
+            return qs.filter(team__cohort__professor=user)
+        elif user.role == 'LEARNER':
+            return qs.filter(team__members__user=user)
+        return qs.none()
+
 
 class EvaluationViewSet(viewsets.ModelViewSet):
     """
@@ -559,9 +901,36 @@ class EvaluationViewSet(viewsets.ModelViewSet):
             return [IsAdmin()]
         return [permissions.IsAuthenticated()]
 
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if not user.is_authenticated:
+            return qs.none()
+            
+        if user.role == 'ADMIN' or user.is_staff:
+            return qs
+        elif user.role == 'PROFESSOR':
+            return qs.filter(submission__team__cohort__professor=user)
+        elif user.role == 'LEARNER':
+            return qs.filter(submission__team__members__user=user)
+        return qs.none()
+    def create(self, request, *args, **kwargs):
+        submission_id = request.data.get('submission')
+        try:
+            # If an evaluation already exists for this submission, update it
+            instance = Evaluation.objects.get(submission_id=submission_id)
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            # Ensure evaluator is set to current user during update as well
+            instance.evaluator = request.user
+            instance.save()
+            return Response(serializer.data)
+        except Evaluation.DoesNotExist:
+            return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(evaluator=self.request.user)
-
 
 class WeeklyProgressViewSet(viewsets.ModelViewSet):
     """
@@ -579,16 +948,16 @@ class WeeklyProgressViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
 
-class AnnouncementViewSet(viewsets.ModelViewSet):
+class NotificationViewSet(viewsets.ModelViewSet):
     """
-    Admin creates announcements that are broadcast to Professors and/or Learners.
-    Professors/Learners see only announcements targeted at them.
+    Admin creates notifications that are broadcast to Professors and/or Learners.
+    Professors/Learners see only notifications targeted at them.
     """
-    queryset = Announcement.objects.all()
-    serializer_class = AnnouncementSerializer
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+        if self.action in ('create', 'update', 'partial_update'):
             return [IsAdmin()]
         return [permissions.IsAuthenticated()]
 
@@ -597,6 +966,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         if not user.is_authenticated:
             return qs.none()
+        
+        # Filter out notifications the user has soft-deleted
+        deleted_ids = NotificationRead.objects.filter(user=user, is_deleted=True).values_list('notification_id', flat=True)
+        qs = qs.exclude(id__in=deleted_ids)
+
         if user.role == 'ADMIN' or user.is_staff:
             return qs
         elif user.role == 'PROFESSOR':
@@ -607,3 +981,50 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def mark_as_read(self, request, pk=None):
+        notification = self.get_object()
+        NotificationRead.objects.get_or_create(user=request.user, notification=notification)
+        return Response({'status': 'marked as read'})
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def mark_all_as_read(self, request):
+        notifications = self.get_queryset()
+        notification_reads = [
+            NotificationRead(user=request.user, notification=n)
+            for n in notifications
+            if not NotificationRead.objects.filter(user=request.user, notification=n).exists()
+        ]
+        NotificationRead.objects.bulk_create(notification_reads)
+        return Response({'status': f'marked {len(notification_reads)} notifications as read'})
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        instance = self.get_object()
+        
+        if user.role == 'ADMIN' or user.is_staff:
+            return super().destroy(request, *args, **kwargs)
+        
+        NotificationRead.objects.update_or_create(
+            user=user, 
+            notification=instance, 
+            defaults={'is_deleted': True}
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class CohortMilestoneViewSet(viewsets.ModelViewSet):
+    """
+    Admin adds/manages milestones for cohorts.
+    Everyone authenticated can read them.
+    """
+    queryset = CohortMilestone.objects.all()
+    serializer_class = CohortMilestoneSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    
+    def get_queryset(self):
+        qs = super().get_queryset()
+        cohort_id = self.request.query_params.get('cohort')
+        if cohort_id:
+            qs = qs.filter(cohort_id=cohort_id)
+        return qs

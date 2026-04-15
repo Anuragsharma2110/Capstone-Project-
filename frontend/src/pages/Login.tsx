@@ -30,7 +30,7 @@ const Login: React.FC = () => {
             } else {
                 navigate('/learner/dashboard');
             }
-        } catch (err: any) {
+        } catch (err) {
             setError('Invalid credentials. Please try again.');
             console.error(err);
         } finally {

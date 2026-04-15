@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './AdminComponents.css';
+import Avatar from '../ui/Avatar';
 
 const Sidebar: React.FC = () => {
     const { user, logout } = useAuth();
@@ -78,14 +79,7 @@ const Sidebar: React.FC = () => {
                             </svg>
                             Teams
                         </NavLink>
-                        <NavLink to="/admin/tasks" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                                <path d="M9 14l2 2 4-4" />
-                            </svg>
-                            Tasks
-                        </NavLink>
+
                         <NavLink to="/setup" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -95,26 +89,16 @@ const Sidebar: React.FC = () => {
                             </svg>
                             User Management
                         </NavLink>
-                        <button onClick={() => navigate('/admin/announcements')} className="new-update-btn" style={{ marginTop: '2rem' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v1z" />
-                                <path d="M10 8v11a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5" />
-                                <path d="M18 8h1a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4h-1" />
-                                <path d="M17 8v8" />
-                            </svg>
-                            Announcements
-                        </button>
                     </>
                 )}
 
                 {role === 'LEARNER' && (
                     <>
-                        <NavLink to="/tasks" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+                        <NavLink to="/guidelines" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                <path d="M9 12l2 2 4-4" />
+                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15M4 19.5A2.5 2.5 0 0 0 6.5 22h11A2.5 2.5 0 0 0 20 19.5M4 19.5h16" />
                             </svg>
-                            Tasks
+                            Capstone Guidelines
                         </NavLink>
                         <NavLink to="/submissions" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -126,29 +110,12 @@ const Sidebar: React.FC = () => {
                         </NavLink>
                         <NavLink to="/feedback" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                             </svg>
-                            Feedback
+                            Faculty Evaluations
                         </NavLink>
 
-                        <div className="sidebar-section-header">Resources</div>
 
-                        <NavLink to="/documents" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                            <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15M4 19.5A2.5 2.5 0 0 0 6.5 22h11A2.5 2.5 0 0 0 20 19.5M4 19.5h16" />
-                            </svg>
-                            Documents
-                        </NavLink>
-
-                        <button onClick={() => navigate('/announcements')} className="new-update-btn" style={{ marginTop: '2rem' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v1z" />
-                                <path d="M10 8v11a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5" />
-                                <path d="M18 8h1a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4h-1" />
-                                <path d="M17 8v8" />
-                            </svg>
-                            Announcements
-                        </button>
                     </>
                 )}
 
@@ -171,15 +138,6 @@ const Sidebar: React.FC = () => {
                             </svg>
                             Submissions & Evaluations
                         </NavLink>
-                        <button onClick={() => navigate('/announcements')} className="new-update-btn" style={{ marginTop: '2rem' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v1z" />
-                                <path d="M10 8v11a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5" />
-                                <path d="M18 8h1a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4h-1" />
-                                <path d="M17 8v8" />
-                            </svg>
-                            Announcements
-                        </button>
                     </>
                 )}
             </nav>
@@ -198,9 +156,9 @@ const Sidebar: React.FC = () => {
                     {showPopup && (
                         <div className="user-popup-bubble">
                             <div className="user-popup-info">
-                                <img
-                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'User'}`}
-                                    alt={user?.first_name || 'User'}
+                                <Avatar
+                                    role={role}
+                                    size={40}
                                     className="user-popup-avatar"
                                 />
                                 <div>
@@ -224,9 +182,9 @@ const Sidebar: React.FC = () => {
                         onClick={() => setShowPopup(prev => !prev)}
                         style={{ cursor: 'pointer' }}
                     >
-                        <img
-                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'User'}`}
-                            alt={user?.first_name || 'User'}
+                        <Avatar
+                            role={role}
+                            size={36}
                             className="user-avatar"
                         />
                         <div className="user-info">

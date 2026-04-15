@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from core.models import (
     Program, Nomination, Cohort, CohortMembership, 
-    Team, TeamMember, Task, Submission, Evaluation, WeeklyProgress, User, Announcement
+    Team, TeamMember, Task, Submission, Evaluation, WeeklyProgress, User, Notification, CohortMilestone
 )
 
 class UserSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'role')
+        fields = ('id', 'username', 'first_name', 'last_name', 'role', 'email')
 
 class ProgramSerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,6 +27,8 @@ class CohortSerializer(serializers.ModelSerializer):
     professor_details = UserSimpleSerializer(source='professor', read_only=True)
     team_count = serializers.SerializerMethodField()
     student_count = serializers.SerializerMethodField()
+    handbook_url = serializers.SerializerMethodField()
+    handbook_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Cohort
@@ -37,6 +39,20 @@ class CohortSerializer(serializers.ModelSerializer):
 
     def get_student_count(self, obj):
         return obj.memberships.count()
+
+    def get_handbook_url(self, obj):
+        if obj.handbook:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.handbook.url)
+            return obj.handbook.url
+        return None
+
+    def get_handbook_name(self, obj):
+        if obj.handbook:
+            import os
+            return os.path.basename(obj.handbook.name)
+        return None
 
 class CohortMembershipSerializer(serializers.ModelSerializer):
     user_details = UserSimpleSerializer(source='user', read_only=True)
@@ -77,10 +93,14 @@ class TaskSerializer(serializers.ModelSerializer):
 class SubmissionSerializer(serializers.ModelSerializer):
     team_details = TeamSerializer(source='team', read_only=True)
     task_details = TaskSerializer(source='task', read_only=True)
+    has_evaluations = serializers.SerializerMethodField()
 
     class Meta:
         model = Submission
         fields = '__all__'
+
+    def get_has_evaluations(self, obj):
+        return obj.evaluations.exists()
 
 class EvaluationSerializer(serializers.ModelSerializer):
     evaluator_details = UserSimpleSerializer(source='evaluator', read_only=True)
@@ -89,6 +109,7 @@ class EvaluationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Evaluation
         fields = '__all__'
+        read_only_fields = ('evaluator',)
 
 class WeeklyProgressSerializer(serializers.ModelSerializer):
     team_details = TeamSerializer(source='team', read_only=True)
@@ -97,10 +118,22 @@ class WeeklyProgressSerializer(serializers.ModelSerializer):
         model = WeeklyProgress
         fields = '__all__'
 
-class AnnouncementSerializer(serializers.ModelSerializer):
+class NotificationSerializer(serializers.ModelSerializer):
     created_by_details = UserSimpleSerializer(source='created_by', read_only=True)
+    is_read = serializers.SerializerMethodField()
 
     class Meta:
-        model = Announcement
+        model = Notification
+        fields = ['id', 'title', 'message', 'audience', 'category', 'cohort', 'created_at', 'created_by_details', 'is_read']
+        read_only_fields = ['created_at', 'created_by_details', 'is_read']
+
+    def get_is_read(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.read_by.filter(user=request.user).exists()
+        return False
+
+class CohortMilestoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CohortMilestone
         fields = '__all__'
-        read_only_fields = ('created_by', 'created_at')

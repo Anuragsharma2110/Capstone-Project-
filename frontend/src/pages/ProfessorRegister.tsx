@@ -28,7 +28,7 @@ const ProfessorRegister: React.FC = () => {
             await api.post('/auth/register/professor/', formData);
             alert('Professor Registration successful! Please login.');
             navigate('/login');
-        } catch (err: any) {
+        } catch (err) {
             setError('Registration failed. Username might be taken.');
             console.error(err);
         } finally {

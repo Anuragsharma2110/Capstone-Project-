@@ -9,7 +9,14 @@ import '../components/admin/CardComponents.css';
 const CohortsManagement: React.FC = () => {
     const [cohorts, setCohorts] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editCohortId, setEditCohortId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const [statsData, setStatsData] = useState({
+        total_students: 0,
+        active_cohorts: 0,
+        total_faculty: 0,
+        upcoming_deadlines: 0,
+    });
 
     const fetchCohorts = async () => {
         setLoading(true);
@@ -24,13 +31,23 @@ const CohortsManagement: React.FC = () => {
     };
 
     useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await axiosInstance.get('/cohorts/dashboard_stats/');
+                console.log("Dashboard Stats Fetched:", res.data); // Added for debugging
+                setStatsData(res.data);
+            } catch (err) {
+                console.error('Failed to fetch dashboard stats', err);
+            }
+        };
+        fetchStats();
         fetchCohorts();
     }, []);
     const stats = [
         {
             label: 'Total Students',
-            value: '1,284',
-            trend: '12% from last term',
+            value: statsData.total_students.toLocaleString(),
+            trend: 'Total Registered',
             trendType: 'up' as const,
             icon: (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -40,8 +57,8 @@ const CohortsManagement: React.FC = () => {
         },
         {
             label: 'Active Cohorts',
-            value: '12',
-            trend: '4 pending start',
+            value: statsData.active_cohorts.toString(),
+            trend: 'Currently running',
             trendType: 'muted' as const,
             icon: (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -57,34 +74,44 @@ const CohortsManagement: React.FC = () => {
             ),
         },
         {
-            label: 'Pending Submissions',
-            value: '45',
-            trend: 'Requires review',
-            trendType: 'warning' as const,
+            label: 'Total Faculty',
+            value: statsData.total_faculty.toString(),
+            trend: 'Mentorship Capacity',
+            trendType: 'up' as const,
             icon: (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                    <path d="M12 11v4" />
-                    <path d="M12 18h.01" />
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
             ),
         },
         {
-            label: 'Pending Professor Evaluations',
-            value: '3',
-            trend: 'Action required',
-            trendType: 'warning' as const,
+            label: 'Upcoming Deadlines',
+            value: statsData.upcoming_deadlines.toString(),
+            trend: 'Next 7 Days',
+            trendType: statsData.upcoming_deadlines > 0 ? 'warning' as const : 'muted' as const,
             icon: (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 11l3 3L22 4" />
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
                 </svg>
             ),
         },
     ];
 
 
+
+    const handleEditCohort = (id: number) => {
+        setEditCohortId(id);
+        setIsModalOpen(true);
+    };
+
+    const handleCreateCohort = () => {
+        setEditCohortId(null);
+        setIsModalOpen(true);
+    };
 
     const handleStatusUpdate = async (id: number, newStatus: string) => {
         try {
@@ -132,7 +159,7 @@ const CohortsManagement: React.FC = () => {
                 </div>
 
                 <div className="cohort-grid">
-                    <div onClick={() => setIsModalOpen(true)} style={{ cursor: 'pointer', height: '100%' }}>
+                    <div onClick={handleCreateCohort} style={{ cursor: 'pointer', height: '100%' }}>
                         <CreateCohortCard />
                     </div>
                     {loading ? (
@@ -145,6 +172,7 @@ const CohortsManagement: React.FC = () => {
                                 key={cohort.id}
                                 {...cohort}
                                 onStatusUpdate={handleStatusUpdate}
+                                onEdit={handleEditCohort}
                             />
                         ))
                     )}
@@ -153,9 +181,14 @@ const CohortsManagement: React.FC = () => {
 
             <CreateCohortModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                cohortId={editCohortId}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    setEditCohortId(null);
+                }}
                 onSuccess={() => {
                     setIsModalOpen(false);
+                    setEditCohortId(null);
                     fetchCohorts();
                 }}
             />

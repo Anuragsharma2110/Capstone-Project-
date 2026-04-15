@@ -22,7 +22,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             try {
                 const response = await api.get('/auth/me/');
                 setUser(response.data);
-            } catch (error) {
+            } catch {
                 console.log("Not authenticated");
                 setUser(null);
             } finally {
@@ -38,17 +38,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = async () => {
         try {
-            // Optional: Call logout endpoint to clear cookies
-            // await api.post('/auth/logout/'); 
-            // We need to implement logout view for this to work perfectly, 
-            // but for now clearing state is enough if we assume the cookie expires or we delete it.
-            // Best practice is to have a logout endpoint.
-            // I'll assume we might add it later or just clear state.
-            // Actually, to clear httpOnly cookie, we MUST call an endpoint.
-            // I will implement a logout endpoint next.
-            setUser(null);
+            await api.post('/auth/logout/');
         } catch (error) {
             console.error("Logout failed", error);
+        } finally {
+            setUser(null);
         }
     };
 
@@ -59,6 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
