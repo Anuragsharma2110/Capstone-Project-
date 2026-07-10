@@ -18,6 +18,7 @@ import Tasks from './pages/Tasks';
 import CapstoneGuidelines from './pages/CapstoneGuidelines';
 import Teams from './pages/Teams';
 import Setup from './pages/Setup';
+import AdminUsers from './pages/AdminUsers';
 import CohortsManagement from './pages/CohortsManagement';
 import Settings from './pages/Settings';
 import TeamsManagement from './components/admin/TeamsManagement';
@@ -139,8 +140,16 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/setup"
         element={
-          <ProtectedRoute allowedRoles={['LEARNER']}>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <Setup />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminUsers />
           </ProtectedRoute>
         }
       />

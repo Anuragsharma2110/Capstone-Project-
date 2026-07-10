@@ -80,7 +80,8 @@ const Sidebar: React.FC = () => {
                             Teams
                         </NavLink>
 
-                        <NavLink to="/setup" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+
+                        <NavLink to="/admin/users" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                             <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                                 <circle cx="9" cy="7" r="4" />
@@ -89,6 +90,7 @@ const Sidebar: React.FC = () => {
                             </svg>
                             User Management
                         </NavLink>
+
                     </>
                 )}
 

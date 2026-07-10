@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import axiosInstance from '../../api/axios';
 import './AdminComponents.css';
 
 interface HeaderProps {
@@ -13,6 +14,24 @@ const Header: React.FC<HeaderProps> = ({ breadcrumb }) => {
     const { theme, toggleTheme } = useTheme();
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [unreadCount, setUnreadCount] = useState<number>(0);
+
+    useEffect(() => {
+        if (!user) return;
+
+        const fetchUnreadCount = async () => {
+            try {
+                const res = await axiosInstance.get('/notifications/unread_count/');
+                setUnreadCount(res.data.unread_count || 0);
+            } catch (e) {
+                console.error("Failed to fetch unread count", e);
+            }
+        };
+
+        fetchUnreadCount();
+        const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30 seconds
+        return () => clearInterval(interval);
+    }, [user]);
 
     const handleNotificationClick = () => {
         if (user?.role === 'ADMIN') {
@@ -88,11 +107,29 @@ const Header: React.FC<HeaderProps> = ({ breadcrumb }) => {
                         className="icon-button notification-bell-btn"
                         onClick={handleNotificationClick}
                         title="View Notifications"
+                        style={{ position: 'relative' }}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                         </svg>
+                        {unreadCount > 0 && (
+                            <span style={{
+                                position: 'absolute',
+                                top: '0',
+                                right: '0',
+                                transform: 'translate(25%, -25%)',
+                                background: '#ef4444',
+                                color: 'white',
+                                borderRadius: '50%',
+                                padding: '2px 5px',
+                                fontSize: '0.65rem',
+                                fontWeight: 'bold',
+                                lineHeight: 1
+                            }}>
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
+                        )}
                     </button>
 
                     <button

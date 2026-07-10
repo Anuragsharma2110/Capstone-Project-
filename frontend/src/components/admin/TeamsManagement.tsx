@@ -4,9 +4,11 @@ import { Card } from '../ui';
 import AutoGenerateTeamsModal from './AutoGenerateTeamsModal';
 import CreateTeamModal from './CreateTeamModal';
 import TeamDetailModal from './TeamDetailModal';
+import CredentialsModal from './CredentialsModal';
 import Toast, { useToast } from './Toast';
 import axiosInstance from '../../api/axios';
 import './CardComponents.css';
+import type { TeamCredential } from '../../types';
 
 interface Learner {
     id: number;
@@ -24,6 +26,7 @@ interface TeamMemberData {
 interface Team {
     id: number;
     name: string;
+    team_username?: string | null;
     cohort_details: {
         id: number;
         name: string;
@@ -39,6 +42,10 @@ const TeamsManagement: React.FC = () => {
     const [unassignedLearners, setUnassignedLearners] = useState<Learner[]>([]);
     const [loading, setLoading] = useState(false);
     const [unassignedOpen, setUnassignedOpen] = useState(true);
+
+    // Team credentials modal
+    const [teamCredentials, setTeamCredentials] = useState<TeamCredential[]>([]);
+    const [showCredentialsModal, setShowCredentialsModal] = useState(false);
 
     // Modals
     const [isAutoGenOpen, setIsAutoGenOpen] = useState(false);
@@ -117,6 +124,18 @@ const TeamsManagement: React.FC = () => {
             setIsAutoGenOpen(false);
             addToast(res.data.detail, 'success');
             refresh(selectedCohortId);
+
+            // Surface generated team credentials
+            const creds: TeamCredential[] = (res.data.teams ?? []).map((t: any) => ({
+                team_id: t.id,
+                team_name: t.name,
+                username: t.credentials?.username ?? '',
+                password: t.credentials?.password ?? '',
+            })).filter((c: TeamCredential) => c.username);
+            if (creds.length > 0) {
+                setTeamCredentials(creds);
+                setShowCredentialsModal(true);
+            }
         } catch (err: any) {
             addToast(err.response?.data?.detail || 'Failed to generate teams.', 'error');
         } finally {
@@ -146,6 +165,17 @@ const TeamsManagement: React.FC = () => {
             setIsCreateTeamOpen(false);
             addToast(`"${res.data.name}" created successfully.`, 'success');
             refresh(selectedCohortId);
+
+            // Surface the single generated team credential
+            if (res.data.team_credentials?.username) {
+                setTeamCredentials([{
+                    team_id: res.data.id,
+                    team_name: res.data.name,
+                    username: res.data.team_credentials.username,
+                    password: res.data.team_credentials.password,
+                }]);
+                setShowCredentialsModal(true);
+            }
         } catch (err: any) {
             addToast(err.response?.data?.detail || 'Failed to create team.', 'error');
         } finally {
@@ -192,6 +222,38 @@ const TeamsManagement: React.FC = () => {
             refresh(selectedCohortId);
         } catch (err: any) {
             addToast(err.response?.data?.detail || 'Failed to assign learner.', 'error');
+        }
+    };
+
+    const handleViewCredentials = async (teamId: number) => {
+        try {
+            if (!selectedCohortId) return;
+            const res = await axiosInstance.get(`/cohorts/${selectedCohortId}/team_credentials/`);
+            const match = res.data.find((t: any) => t.team_id === teamId);
+            if (match?.username) {
+                setTeamCredentials([{ team_id: match.team_id, team_name: match.team_name, username: match.username, password: '(hidden — use Regenerate to get a new one)' }]);
+                setShowCredentialsModal(true);
+            } else {
+                addToast('No credentials found for this team.', 'error');
+            }
+        } catch {
+            addToast('Failed to fetch team credentials.', 'error');
+        }
+    };
+
+    const handleRegenerateCredentials = async (teamId: number) => {
+        try {
+            const res = await axiosInstance.post(`/teams/${teamId}/regenerate_credentials/`);
+            setTeamCredentials([{
+                team_id: res.data.team_id,
+                team_name: res.data.team_name,
+                username: res.data.username,
+                password: res.data.new_password,
+            }]);
+            setShowCredentialsModal(true);
+            addToast('Credentials regenerated successfully.', 'success');
+        } catch {
+            addToast('Failed to regenerate credentials.', 'error');
         }
     };
 
@@ -383,7 +445,7 @@ const TeamsManagement: React.FC = () => {
                                             {team.members.length === 0 ? (
                                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No members assigned.</span>
                                             ) : (
-                                                team.members.slice(0, 4).map(m => (
+                                                team.members.slice(0, 5).map(m => (
                                                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                         <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'rgba(37,99,235,0.1)', color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.7rem', flexShrink: 0 }}>
                                                             {avatarInitials(m.user_details)}
@@ -394,15 +456,24 @@ const TeamsManagement: React.FC = () => {
                                                     </div>
                                                 ))
                                             )}
-                                            {team.members.length > 4 && (
+                                            {team.members.length > 5 && (
                                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                                    +{team.members.length - 4} more — click Edit to see all
+                                                    +{team.members.length - 5} more — click Edit to see all
                                                 </span>
                                             )}
                                         </div>
 
                                         {/* Actions */}
-                                        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            {/* Credentials shortcut buttons */}
+                                            <button
+                                                onClick={() => handleRegenerateCredentials(team.id)}
+                                                title="Generate a new password for this team's login account"
+                                                style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', padding: '0.4rem 0.75rem', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+                                                Reset Creds
+                                            </button>
                                             <button
                                                 onClick={() => openTeamDetail(team)}
                                                 style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '0.4rem 0.9rem', borderRadius: '7px', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -447,7 +518,16 @@ const TeamsManagement: React.FC = () => {
                 onRemoveLearner={handleRemoveLearner}
                 onMoveLearner={handleMoveLearner}
                 onAssignLearner={handleAssignLearner}
+                onRegenerateCredentials={handleRegenerateCredentials}
             />
+            {showCredentialsModal && (
+                <CredentialsModal
+                    mode="team"
+                    teamCredentials={teamCredentials}
+                    cohortId={selectedCohortId ?? undefined}
+                    onClose={() => { setShowCredentialsModal(false); setTeamCredentials([]); }}
+                />
+            )}
         </AdminLayout>
     );
 };

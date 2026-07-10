@@ -289,7 +289,7 @@ const ProfessorSubmissions: React.FC = () => {
                                                     fontSize: '0.875rem'
                                                 }}
                                             >
-                                                {row.status === 'Not Submitted' ? 'No Submissions' : 'Review'}
+                                                {row.status === 'Not Submitted' ? 'No Submissions' : row.status === 'Reviewed' ? 'View Feedback' : 'Review'}
                                             </button>
                                         </div>
                                     </td>

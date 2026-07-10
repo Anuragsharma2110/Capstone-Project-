@@ -34,7 +34,6 @@ const CohortsManagement: React.FC = () => {
         const fetchStats = async () => {
             try {
                 const res = await axiosInstance.get('/cohorts/dashboard_stats/');
-                console.log("Dashboard Stats Fetched:", res.data); // Added for debugging
                 setStatsData(res.data);
             } catch (err) {
                 console.error('Failed to fetch dashboard stats', err);

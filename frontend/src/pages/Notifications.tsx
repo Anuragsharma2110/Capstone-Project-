@@ -201,6 +201,11 @@ const Notifications: React.FC = () => {
                                         {!notif.is_read && <span className="unread-dot" title="Unread"></span>}
                                         {notif.title}
                                     </h3>
+                                    {(notif.audience === 'TEAM' || notif.audience === 'COHORT') && (
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#059669', background: '#d1fae5', padding: '2px 6px', borderRadius: '4px', display: 'inline-block', marginBottom: '0.5rem' }}>
+                                            {notif.audience === 'TEAM' ? 'Team Announcement' : 'Cohort Announcement'}
+                                        </span>
+                                    )}
                                     <p className={`notification-message ${expandedId === notif.id ? 'expanded' : ''}`}>
                                         {notif.message}
                                     </p>

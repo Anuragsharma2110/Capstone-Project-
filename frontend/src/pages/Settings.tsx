@@ -11,6 +11,7 @@ const Settings: React.FC = () => {
 
     // Profile State
     const [profileData, setProfileData] = useState({
+        username: '',
         first_name: '',
         last_name: '',
         email: '',
@@ -31,6 +32,7 @@ const Settings: React.FC = () => {
     useEffect(() => {
         if (user) {
             setProfileData({
+                username: user.username || '',
                 first_name: user.first_name || '',
                 last_name: user.last_name || '',
                 email: user.email || '',
@@ -53,7 +55,8 @@ const Settings: React.FC = () => {
 
         try {
             // Updating user profile via /auth/me/ endpoint
-            const response = await api.put('/auth/me/', profileData);
+            // Only sending username as per backend restrictions
+            const response = await api.put('/auth/me/', { username: profileData.username });
             setProfileMessage({ type: 'success', text: 'Profile updated successfully.' });
 
             // Refresh local auth state if possible (assuming login can refresh the user object)
@@ -61,10 +64,19 @@ const Settings: React.FC = () => {
                 login(response.data);
             }
         } catch (err) {
-            const e = err as { response?: { data?: { detail?: string } } };
+            const e = err as { response?: { data?: { detail?: string; username?: string[] } } };
+            const errorData = e.response?.data;
+            let errorMessage = 'Failed to update profile. Please try again.';
+
+            if (errorData?.username) {
+                errorMessage = errorData.username[0];
+            } else if (errorData?.detail) {
+                errorMessage = errorData.detail;
+            }
+
             setProfileMessage({
                 type: 'error',
-                text: e.response?.data?.detail || 'Failed to update profile. Please try again.'
+                text: errorMessage
             });
         } finally {
             setProfileLoading(false);
@@ -189,34 +201,46 @@ const Settings: React.FC = () => {
                             )}
 
                             <form onSubmit={handleProfileSubmit} style={{ width: '100%' }}>
+                                <Input
+                                    label="Username (Display ID)"
+                                    type="text"
+                                    name="username"
+                                    value={profileData.username}
+                                    onChange={handleProfileChange}
+                                    required
+                                    placeholder="Enter your unique username"
+                                />
+
+                                <div style={{ height: '1rem' }} />
+
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <Input
                                         label="First Name"
                                         type="text"
                                         name="first_name"
                                         value={profileData.first_name}
-                                        onChange={handleProfileChange}
-                                        required
+                                        readOnly
+                                        style={{ opacity: 0.7, cursor: 'not-allowed', background: 'rgba(255,255,255,0.02)' }}
                                     />
                                     <Input
                                         label="Last Name"
                                         type="text"
                                         name="last_name"
                                         value={profileData.last_name}
-                                        onChange={handleProfileChange}
-                                        required
+                                        readOnly
+                                        style={{ opacity: 0.7, cursor: 'not-allowed', background: 'rgba(255,255,255,0.02)' }}
                                     />
                                 </div>
 
                                 <div style={{ height: '1rem' }} />
 
                                 <Input
-                                    label="Email"
+                                    label="Email (Permanent)"
                                     type="email"
                                     name="email"
                                     value={profileData.email}
-                                    onChange={handleProfileChange}
-                                    required
+                                    readOnly
+                                    style={{ opacity: 0.7, cursor: 'not-allowed', background: 'rgba(255,255,255,0.02)' }}
                                 />
 
                                 <div style={{ height: '1rem' }} />

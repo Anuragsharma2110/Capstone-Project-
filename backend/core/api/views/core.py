@@ -25,6 +25,50 @@ from core.permissions import (
 )
 
 
+# ─── Shared Team Account Helper ───────────────────────────────────────────────
+
+def _build_human_password(team_name: str) -> str:
+    """
+    Generate a human-readable password in the format: TeamName-XXXX
+    e.g. "Alpha-4821". Uses the sanitised first word of the team name.
+    """
+    import re
+    # Take the first word, strip non-alphanumeric, capitalise
+    word = re.sub(r'[^A-Za-z0-9]', '', team_name.split()[0]).capitalize() if team_name.split() else 'Team'
+    suffix = str(random.randint(1000, 9999))
+    return f"{word}-{suffix}"
+
+
+def _create_team_user(team: Team):
+    """
+    Create (or replace) the shared Django User account for a Team.
+    Username : cohort<cohort_id>_team<team_id>   e.g. cohort3_team7
+    Password : human-readable  e.g. Alpha-4821
+    Returns  : (user, plain_text_password)
+    """
+    username = f"cohort{team.cohort_id}_team{team.id}"
+    plain_pw = _build_human_password(team.name)
+
+    user = User.objects.create_user(
+        username=username,
+        password=plain_pw,
+        role=User.Role.LEARNER,
+        first_name=team.name,
+    )
+    team.team_user = user
+    team.save(update_fields=['team_user'])
+
+    # Create a CohortMembership so the lifecycle auth check (requires ACTIVE membership)
+    # does not block this shared account from logging in.
+    CohortMembership.objects.get_or_create(
+        user=user,
+        cohort=team.cohort,
+        defaults={'status': 'ACTIVE'},
+    )
+
+    return user, plain_pw
+
+
 class ProgramViewSet(viewsets.ModelViewSet):
     """Programs are managed by Admin; anyone authenticated can read."""
     queryset = Program.objects.all()
@@ -81,7 +125,11 @@ class CohortViewSet(viewsets.ModelViewSet):
         unique_statuses = list(Cohort.objects.values_list('status', flat=True).distinct())
 
         # Corrected / Updated filters
-        total_students = User.objects.filter(role__iexact='LEARNER').count()
+        # Total real students — exclude shared team-account users
+        team_account_ids = set(
+            Team.objects.filter(team_user__isnull=False).values_list('team_user_id', flat=True)
+        )
+        total_students = User.objects.filter(role__iexact='LEARNER').exclude(id__in=team_account_ids).count()
         active_cohorts = Cohort.objects.exclude(status='ARCHIVED').count()
         
         # New Metrics
@@ -120,8 +168,16 @@ class CohortViewSet(viewsets.ModelViewSet):
     def unassigned_learners(self, request, pk=None):
         """Return learners in this cohort who are not in any team."""
         cohort = self.get_object()
-        cohort_memberships = CohortMembership.objects.filter(cohort=cohort).select_related('user')
-        all_learners = [cm.user for cm in cohort_memberships if cm.user.role == 'LEARNER']
+        cohort_memberships = CohortMembership.objects.filter(cohort=cohort, status='ACTIVE').select_related('user')
+
+        # Exclude shared team-account users (they have a membership for login purposes only)
+        team_user_ids = set(
+            Team.objects.filter(cohort=cohort, team_user__isnull=False).values_list('team_user_id', flat=True)
+        )
+        all_learners = [
+            cm.user for cm in cohort_memberships
+            if cm.user.role == 'LEARNER' and cm.user.id not in team_user_ids
+        ]
 
         # Get IDs of learners already assigned to any team in this cohort
         assigned_user_ids = set(
@@ -135,15 +191,24 @@ class CohortViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def create_team(self, request, pk=None):
         """Manually create a new (empty) team in this cohort."""
+        from django.db import transaction
         cohort = self.get_object()
         name = request.data.get('name', '').strip()
         if not name:
             # Auto-name based on existing team count
             existing_count = Team.objects.filter(cohort=cohort).count()
             name = f"Team {existing_count + 1}"
-        team = Team.objects.create(name=name, cohort=cohort)
-        serializer = TeamSerializer(team)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        with transaction.atomic():
+            team = Team.objects.create(name=name, cohort=cohort)
+            team_user, plain_pw = _create_team_user(team)
+
+        data = TeamSerializer(team).data
+        data['team_credentials'] = {
+            'username': team_user.username,
+            'password': plain_pw,
+        }
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def auto_generate_teams(self, request, pk=None):
@@ -168,9 +233,15 @@ class CohortViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Fetch all learners in this cohort
-        cohort_memberships = CohortMembership.objects.filter(cohort=cohort).select_related('user')
-        all_learners = [cm.user for cm in cohort_memberships if cm.user.role == 'LEARNER']
+        # Fetch all ACTIVE learners in this cohort, excluding shared team accounts
+        cohort_memberships = CohortMembership.objects.filter(cohort=cohort, status='ACTIVE').select_related('user')
+        team_user_ids = set(
+            Team.objects.filter(cohort=cohort, team_user__isnull=False).values_list('team_user_id', flat=True)
+        )
+        all_learners = [
+            cm.user for cm in cohort_memberships
+            if cm.user.role == 'LEARNER' and cm.user.id not in team_user_ids
+        ]
 
         if not all_learners:
             return Response(
@@ -183,7 +254,10 @@ class CohortViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 if reset_requested:
-                    # Full reset: delete all teams and redistribute everyone
+                    # Full reset: delete orphaned team-user accounts first, then teams
+                    User.objects.filter(
+                        owned_team__cohort=cohort
+                    ).delete()
                     Team.objects.filter(cohort=cohort).delete()
                     learners_to_assign = all_learners
                 else:
@@ -208,11 +282,14 @@ class CohortViewSet(viewsets.ModelViewSet):
                 num_learners = len(learners_to_assign)
                 num_base_teams = max(1, num_learners // team_size)
                 remainder = num_learners % team_size
-
+                
                 if num_base_teams == 1 and num_learners < team_size:
                     remainder = 0
 
+                print(f"Assigning {num_learners} learners to teams of size {team_size}...")
+
                 learner_idx = 0
+                last_team_obj = None
 
                 for i in range(num_base_teams):
                     current_team_size = team_size
@@ -227,23 +304,27 @@ class CohortViewSet(viewsets.ModelViewSet):
                     learner_idx += current_team_size
 
                     team_name = f"Team {team_counter}"
-                    team = Team.objects.create(name=team_name, cohort=cohort)
-                    TeamMember.objects.bulk_create([TeamMember(team=team, user=u) for u in chunk])
+                    last_team_obj = Team.objects.create(name=team_name, cohort=cohort)
+                    TeamMember.objects.bulk_create([TeamMember(team=last_team_obj, user=u) for u in chunk])
+                    team_user, plain_pw = _create_team_user(last_team_obj)
 
                     teams_created.append({
-                        "id": team.id,
-                        "name": team.name,
-                        "member_count": len(chunk)
+                        "id": last_team_obj.id,
+                        "name": last_team_obj.name,
+                        "member_count": len(chunk),
+                        "credentials": {
+                            "username": team_user.username,
+                            "password": plain_pw,
+                        }
                     })
                     team_counter += 1
 
-                # Safety: stray learners go to the last team
-                if learner_idx < num_learners:
+                # Safety: stray learners go to the last team created
+                if learner_idx < num_learners and last_team_obj:
                     leftovers = learners_to_assign[learner_idx:]
-                    if teams_created:
-                        last_team = Team.objects.filter(cohort=cohort).latest('id')
-                        TeamMember.objects.bulk_create([TeamMember(team=last_team, user=u) for u in leftovers])
-                        teams_created[-1]["member_count"] += len(leftovers)
+                    TeamMember.objects.bulk_create([TeamMember(team=last_team_obj, user=u) for u in leftovers])
+                    teams_created[-1]["member_count"] += len(leftovers)
+                    print(f"Assigned {len(leftovers)} stray learners to {last_team_obj.name}")
 
         except Exception as e:
             return Response(
@@ -266,9 +347,15 @@ class CohortViewSet(viewsets.ModelViewSet):
         preferred_size = cohort.preferred_team_size
         max_allowed = preferred_size + 1
 
-        # 1. Fetch all learners
-        cohort_memberships = CohortMembership.objects.filter(cohort=cohort).select_related('user')
-        all_learners = [cm.user for cm in cohort_memberships if cm.user.role == 'LEARNER']
+        # 1. Fetch all ACTIVE real learners (exclude shared team accounts)
+        cohort_memberships = CohortMembership.objects.filter(cohort=cohort, status='ACTIVE').select_related('user')
+        team_user_ids = set(
+            Team.objects.filter(cohort=cohort, team_user__isnull=False).values_list('team_user_id', flat=True)
+        )
+        all_learners = [
+            cm.user for cm in cohort_memberships
+            if cm.user.role == 'LEARNER' and cm.user.id not in team_user_ids
+        ]
 
         # 2. Filter for unassigned learners
         unassigned_learners = []
@@ -322,6 +409,7 @@ class CohortViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin], parser_classes=[MultiPartParser, FormParser])
     def upload_learners(self, request, pk=None):
         from django.db import transaction
+        from django.utils.crypto import get_random_string
         import random
         import string
         
@@ -337,16 +425,30 @@ class CohortViewSet(viewsets.ModelViewSet):
         try:
             filename = file_obj.name.lower()
             if filename.endswith('.csv'):
-                df = pd.read_csv(file_obj)
+                try:
+                    # Try common encodings for CSV
+                    df = pd.read_csv(file_obj, encoding='utf-8')
+                except UnicodeDecodeError:
+                    file_obj.seek(0)
+                    df = pd.read_csv(file_obj, encoding='latin1')
             elif filename.endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file_obj)
             else:
                 return Response({"detail": "Unsupported file format. Please upload a .csv or Excel file."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": f"Error reading file: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             
             # Find essential columns (case-insensitive)
+            # Google Forms often use "Email ID (Registered one)" and "Full Name"
             email_col = next((c for c in df.columns if 'email' in str(c).lower()), None)
-            first_name_col = next((c for c in df.columns if 'first' in str(c).lower() or 'name' == str(c).lower()), None)
-            last_name_col = next((c for c in df.columns if 'last' in str(c).lower()), None)
+            full_name_col = next((c for c in df.columns if 'full name' in str(c).lower()), None)
+            
+            if full_name_col:
+                first_name_col = full_name_col
+                last_name_col = None
+            else:
+                first_name_col = next((c for c in df.columns if 'first' in str(c).lower() or 'name' == str(c).lower()), None)
+                last_name_col = next((c for c in df.columns if 'last' in str(c).lower()), None)
             
             if not email_col:
                  return Response({"detail": "File must contain an 'email' column."}, status=status.HTTP_400_BAD_REQUEST)
@@ -362,8 +464,7 @@ class CohortViewSet(viewsets.ModelViewSet):
             overwritten_count = 0
             created_count = 0
             failed_emails = []
-
-            default_password = "Welcome123!"
+            created_credentials = []
 
             with transaction.atomic():
                 for _, row in df.iterrows():
@@ -394,15 +495,23 @@ class CohortViewSet(viewsets.ModelViewSet):
                                 username = f"{base_username}{counter}"
                                 counter += 1
                             
+                            # Generate a random password
+                            temp_password = get_random_string(8)
+
                             user = User.objects.create_user(
                                 username=username,
                                 email=email,
-                                password=default_password,
+                                password=temp_password,
                                 first_name=f_name,
                                 last_name=l_name,
                                 role='LEARNER'
                             )
                             created_count += 1
+                            created_credentials.append({
+                                "email": email,
+                                "username": username,
+                                "password": temp_password
+                            })
                         
                         if user.role != 'LEARNER':
                             failed_emails.append(f"{email} (User exists but role is {user.role})")
@@ -412,17 +521,22 @@ class CohortViewSet(viewsets.ModelViewSet):
                         existing_membership = CohortMembership.objects.filter(user=user).first()
                         
                         if existing_membership:
+                            # Re-activate if they were graduated/dropped
+                            if existing_membership.status != 'ACTIVE':
+                                existing_membership.status = 'ACTIVE'
+                                overwritten_count += 1
+                            
                             if existing_membership.cohort == cohort:
+                                existing_membership.save()
                                 continue # Already in this cohort
                             else:
-                                # Reassign and count as overwrite
+                                # Reassign to this cohort
                                 existing_membership.cohort = cohort
                                 existing_membership.save()
-                                overwritten_count += 1
                                 assigned_count += 1
                         else:
                             # Create new membership
-                            CohortMembership.objects.create(user=user, cohort=cohort)
+                            CohortMembership.objects.create(user=user, cohort=cohort, status='ACTIVE')
                             assigned_count += 1
 
                     except Exception as e:
@@ -434,11 +548,46 @@ class CohortViewSet(viewsets.ModelViewSet):
                 "created_count": created_count,
                 "failed_count": len(failed_emails),
                 "failed_emails": failed_emails,
+                "credentials": created_credentials,
                 "detail": f"Processed {len(emails_to_process)} unique emails. Created: {created_count}. Assigned: {assigned_count}. Failed: {len(failed_emails)}."
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"detail": f"Error processing file: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def bulk_update_access(self, request, pk=None):
+        """Update access_until or status for multiple learners in a cohort."""
+        from django.db import transaction
+        cohort = self.get_object()
+        user_ids = request.data.get('user_ids', [])
+        access_until = request.data.get('access_until')
+        new_status = request.data.get('status') # Optional: ACTIVE, GRADUATED, etc.
+
+        if not user_ids:
+            return Response({"detail": "user_ids list is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_count = 0
+        try:
+            with transaction.atomic():
+                memberships = CohortMembership.objects.filter(cohort=cohort, user_id__in=user_ids)
+                
+                update_fields = {}
+                if access_until is not None:
+                    # Handle empty string as None
+                    update_fields['access_until'] = access_until if access_until else None
+                if new_status:
+                    update_fields['status'] = new_status
+                
+                if update_fields:
+                    updated_count = memberships.update(**update_fields)
+            
+            return Response({
+                "detail": f"Successfully updated {updated_count} learners.",
+                "updated_count": updated_count
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": f"Error during bulk update: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
     def clear_learners(self, request, pk=None):
@@ -470,6 +619,63 @@ class CohortViewSet(viewsets.ModelViewSet):
             return Response({"detail": msg}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": f"Error clearing learners: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def reactivate_learner(self, request, pk=None):
+        """Manually restore access for a graduated or dropped learner."""
+        cohort = self.get_object()
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        membership = CohortMembership.objects.filter(cohort=cohort, user_id=user_id).first()
+        if not membership:
+            return Response({"detail": "Membership not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        membership.status = 'ACTIVE'
+        membership.save()
+        return Response({"detail": "Learner access has been restored."})
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdmin])
+    def team_credentials(self, request, pk=None):
+        """Return stored team usernames for all teams in this cohort.
+        Passwords are hashed and cannot be re-read; use regenerate_credentials on a team to reset."""
+        cohort = self.get_object()
+        teams = Team.objects.filter(cohort=cohort).select_related('team_user')
+        data = []
+        for team in teams:
+            data.append({
+                "team_id": team.id,
+                "team_name": team.name,
+                "username": team.team_user.username if team.team_user else None,
+                "has_account": team.team_user is not None,
+            })
+        return Response(data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def dispatch_credentials_emails(self, request, pk=None):
+        """
+        Receives a JSON list of credentials and dispatches emails to the respective team members.
+        Expects payload: {'credentials': [{'team_id': 1, 'username': 'x', 'password': 'y'}, ...]}
+        """
+        cohort = self.get_object()
+        credentials_list = request.data.get('credentials', [])
+        
+        if not credentials_list or not isinstance(credentials_list, list):
+            return Response(
+                {"detail": "Invalid or empty credentials list."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from core.emails import send_team_credentials_batch
+        
+        # Dispatch emails using utility
+        emails_sent = send_team_credentials_batch(cohort, credentials_list)
+        
+        return Response({
+            "detail": f"Successfully queued {emails_sent} credential emails to students.",
+            "emails_sent": emails_sent
+        }, status=status.HTTP_200_OK)
 
     # ──────────────────────────────────────────────────────────────────────
     # TEAM PERFORMANCES (Admin Dashboard)
@@ -615,6 +821,15 @@ class CohortMembershipViewSet(viewsets.ModelViewSet):
     serializer_class = CohortMembershipSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_queryset(self):
+        qs = CohortMembership.objects.select_related('user', 'cohort').all()
+        cohort_id = self.request.query_params.get('cohort')
+        if cohort_id:
+            qs = qs.filter(cohort_id=cohort_id)
+        # Exclude memberships that belong to shared team-login accounts
+        qs = qs.exclude(user__owned_team__isnull=False)
+        return qs
+
 
 class TeamViewSet(viewsets.ModelViewSet):
     """
@@ -631,8 +846,12 @@ class TeamViewSet(viewsets.ModelViewSet):
 
         if user.is_authenticated:
             if user.role == 'LEARNER':
-                # Learners only see team(s) they are members of
-                qs = qs.filter(members__user=user)
+                # Regular learners: team they are a member of
+                # Shared team accounts: team they "own" (linked via team_user)
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(members__user=user) | Q(team_user=user)
+                )
             elif user.role == 'PROFESSOR':
                 # Professors only see teams in their cohorts
                 qs = qs.filter(cohort__professor=user)
@@ -673,6 +892,15 @@ class TeamViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             TeamMember.objects.create(team=team, user=user)
+            Notification.objects.create(
+                title="New Team Member",
+                message=f"{user.get_full_name() or user.username} has joined your team.",
+                audience='TEAM',
+                category='SYSTEM',
+                team=team,
+                cohort=team.cohort,
+                created_by=request.user
+            )
 
         data = {"detail": f"{user.get_full_name() or user.username} assigned to {team.name}."}
         if warning:
@@ -714,6 +942,19 @@ class TeamViewSet(viewsets.ModelViewSet):
             membership.delete()
             # Ensure learner is not already in target (safety)
             TeamMember.objects.get_or_create(team=target_team, user_id=user_id)
+            try:
+                learner_user = User.objects.get(id=user_id)
+                Notification.objects.create(
+                    title="New Team Member",
+                    message=f"{learner_user.get_full_name() or learner_user.username} has been moved to your team.",
+                    audience='TEAM',
+                    category='SYSTEM',
+                    team=target_team,
+                    cohort=target_team.cohort,
+                    created_by=request.user
+                )
+            except User.DoesNotExist:
+                pass
 
         data = {"detail": f"Learner moved from {team.name} to {target_team.name}."}
         if warning:
@@ -742,15 +983,35 @@ class TeamViewSet(viewsets.ModelViewSet):
 
     from rest_framework.parsers import MultiPartParser, FormParser
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def regenerate_credentials(self, request, pk=None):
+        """Generate a new human-readable password for this team's shared account."""
+        team = self.get_object()
+        if not team.team_user:
+            # No account yet — create one
+            team_user, plain_pw = _create_team_user(team)
+        else:
+            plain_pw = _build_human_password(team.name)
+            team.team_user.set_password(plain_pw)
+            team.team_user.save(update_fields=['password'])
+            team_user = team.team_user
+        return Response({
+            "team_id": team.id,
+            "team_name": team.name,
+            "username": team_user.username,
+            "new_password": plain_pw,
+        })
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated], parser_classes=[MultiPartParser, FormParser])
     def submit_final(self, request, pk=None):
         """Mark a team's final submission as completed and upload associated document."""
         team = self.get_object()
         user = request.user
 
-        # Allow admin or actual team member
+        # Allow admin, actual team member, or the shared team_user account
+        is_team_account = hasattr(user, 'owned_team') and user.owned_team_id == team.id
         if user.role != 'ADMIN' and not user.is_staff:
-            if not TeamMember.objects.filter(team=team, user=user).exists():
+            if not is_team_account and not TeamMember.objects.filter(team=team, user=user).exists():
                 return Response(
                     {"detail": "You are not a member of this team."},
                     status=status.HTTP_403_FORBIDDEN
@@ -811,6 +1072,16 @@ class TeamViewSet(viewsets.ModelViewSet):
 
         team.is_final_submitted = True
         team.save(update_fields=['is_final_submitted'])
+        
+        Notification.objects.create(
+            title="Final Submission Received",
+            message=f"{team.name} has submitted their final deliverable for task '{task.title}'.",
+            audience='PROFESSORS',
+            category='SYSTEM',
+            cohort=team.cohort,
+            created_by=user
+        )
+
         return Response({"detail": "Final submission marked as completed.", "is_final_submitted": True}, status=status.HTTP_200_OK)
 
 
@@ -908,12 +1179,18 @@ class EvaluationViewSet(viewsets.ModelViewSet):
             return qs.none()
             
         if user.role == 'ADMIN' or user.is_staff:
-            return qs
+            pass
         elif user.role == 'PROFESSOR':
-            return qs.filter(submission__team__cohort__professor=user)
+            qs = qs.filter(submission__team__cohort__professor=user)
         elif user.role == 'LEARNER':
-            return qs.filter(submission__team__members__user=user)
-        return qs.none()
+            qs = qs.filter(submission__team__members__user=user)
+        else:
+            return qs.none()
+
+        submission_id = self.request.query_params.get('submission')
+        if submission_id:
+            qs = qs.filter(submission_id=submission_id)
+        return qs
     def create(self, request, *args, **kwargs):
         submission_id = request.data.get('submission')
         try:
@@ -922,15 +1199,32 @@ class EvaluationViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
-            # Ensure evaluator is set to current user during update as well
             instance.evaluator = request.user
             instance.save()
+            Notification.objects.create(
+                title="Evaluation Updated",
+                message=f"Your submission for '{instance.submission.task.title}' has been re-evaluated.",
+                audience='TEAM',
+                category='MESSAGE',
+                team=instance.submission.team,
+                cohort=instance.submission.team.cohort,
+                created_by=request.user
+            )
             return Response(serializer.data)
         except Evaluation.DoesNotExist:
             return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        serializer.save(evaluator=self.request.user)
+        evaluation = serializer.save(evaluator=self.request.user)
+        Notification.objects.create(
+            title="Evaluation Received",
+            message=f"Your submission for '{evaluation.submission.task.title}' has been evaluated.",
+            audience='TEAM',
+            category='MESSAGE',
+            team=evaluation.submission.team,
+            cohort=evaluation.submission.team.cohort,
+            created_by=self.request.user
+        )
 
 class WeeklyProgressViewSet(viewsets.ModelViewSet):
     """
@@ -942,10 +1236,27 @@ class WeeklyProgressViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update'):
+            # Allow both individual learners AND shared team accounts (also role=LEARNER)
             return [IsLearner()]
         if self.action == 'destroy':
             return [IsAdmin()]
         return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if not user.is_authenticated:
+            return qs.none()
+        if user.role == 'ADMIN' or user.is_staff:
+            return qs
+        elif user.role == 'PROFESSOR':
+            return qs.filter(team__cohort__professor=user)
+        elif user.role == 'LEARNER':
+            # Individual learner OR shared team account
+            if hasattr(user, 'owned_team') and user.owned_team is not None:
+                return qs.filter(team=user.owned_team)
+            return qs.filter(team__members__user=user)
+        return qs.none()
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -973,11 +1284,35 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
         if user.role == 'ADMIN' or user.is_staff:
             return qs
-        elif user.role == 'PROFESSOR':
-            return qs.filter(audience__in=['ALL', 'PROFESSORS'])
+            
+        from django.db.models import Q
+        q = Q(audience='ALL')
+
+        if user.role == 'PROFESSOR':
+            cohort_ids = Cohort.objects.filter(professor=user).values_list('id', flat=True)
+            q |= Q(audience='PROFESSORS')
+            q |= Q(audience='COHORT', cohort_id__in=cohort_ids)
         elif user.role == 'LEARNER':
-            return qs.filter(audience__in=['ALL', 'LEARNERS'])
-        return qs.none()
+            cohort_ids = CohortMembership.objects.filter(user=user).values_list('cohort_id', flat=True)
+            team_ids = []
+            if hasattr(user, 'owned_team') and user.owned_team:
+                team_ids.append(user.owned_team.id)
+            else:
+                team_ids = list(TeamMember.objects.filter(user=user).values_list('team_id', flat=True))
+                
+            q |= Q(audience='LEARNERS')
+            q |= Q(audience='COHORT', cohort_id__in=cohort_ids)
+            if team_ids:
+                q |= Q(audience='TEAM', team_id__in=team_ids)
+
+        return qs.filter(q).distinct()
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def unread_count(self, request):
+        qs = self.get_queryset()
+        read_ids = NotificationRead.objects.filter(user=request.user).values_list('notification_id', flat=True)
+        unread_count = qs.exclude(id__in=read_ids).count()
+        return Response({'unread_count': unread_count})
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

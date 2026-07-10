@@ -93,22 +93,22 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 
         if token:
             response.set_cookie(
-                'access_token',
+                settings.SIMPLE_JWT.get('AUTH_COOKIE', 'access_token'),
                 token,
                 max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=True,
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE']
+                secure=settings.SIMPLE_JWT.get('AUTH_COOKIE_SECURE', False),
+                httponly=settings.SIMPLE_JWT.get('AUTH_COOKIE_HTTP_ONLY', True),
+                samesite=settings.SIMPLE_JWT.get('AUTH_COOKIE_SAMESITE', 'Lax')
             )
         
         if refresh:
             response.set_cookie(
-                'refresh_token',
+                settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token'),
                 refresh,
                 max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                httponly=True,
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE']
+                secure=settings.SIMPLE_JWT.get('AUTH_COOKIE_SECURE', False),
+                httponly=settings.SIMPLE_JWT.get('AUTH_COOKIE_HTTP_ONLY', True),
+                samesite=settings.SIMPLE_JWT.get('AUTH_COOKIE_SAMESITE', 'Lax')
             )
         
         return response
@@ -126,7 +126,12 @@ class CookieTokenRefreshView(TokenRefreshView):
             try:
                 serializer.is_valid(raise_exception=True)
             except Exception as e:
-                return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+                # If is_valid(raise_exception=True) raises, we shouldn't access .errors 
+                # unless we are sure it's a validation error. SimpleJWT raises TokenError.
+                from rest_framework_simplejwt.exceptions import TokenError
+                if isinstance(e, TokenError):
+                    return Response({"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+                return Response(serializer.errors if hasattr(serializer, '_errors') else {"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
                 
             response = Response(serializer.validated_data, status=status.HTTP_200_OK)
             
@@ -135,22 +140,22 @@ class CookieTokenRefreshView(TokenRefreshView):
             
             if token:
                 response.set_cookie(
-                    'access_token',
+                    settings.SIMPLE_JWT.get('AUTH_COOKIE', 'access_token'),
                     token,
                     max_age=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds(),
-                    secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                    httponly=True,
-                    samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE']
+                    secure=settings.SIMPLE_JWT.get('AUTH_COOKIE_SECURE', False),
+                    httponly=settings.SIMPLE_JWT.get('AUTH_COOKIE_HTTP_ONLY', True),
+                    samesite=settings.SIMPLE_JWT.get('AUTH_COOKIE_SAMESITE', 'Lax')
                 )
             
             if refresh:
                 response.set_cookie(
-                    'refresh_token',
+                    settings.SIMPLE_JWT.get('AUTH_COOKIE_REFRESH', 'refresh_token'),
                     refresh,
                     max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds(),
-                    secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                    httponly=True,
-                    samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE']
+                    secure=settings.SIMPLE_JWT.get('AUTH_COOKIE_SECURE', False),
+                    httponly=settings.SIMPLE_JWT.get('AUTH_COOKIE_HTTP_ONLY', True),
+                    samesite=settings.SIMPLE_JWT.get('AUTH_COOKIE_SAMESITE', 'Lax')
                 )
             return response
 

@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from core.permissions import IsAdmin
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
@@ -51,6 +52,13 @@ class UserDetailView(APIView):
                 'team_id': team_id,
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AdminListView(generics.ListAPIView):
+    serializer_class = UserSimpleSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
+
+    def get_queryset(self):
+        return User.objects.filter(role=User.Role.ADMIN)
 
 class ProfessorListView(generics.ListAPIView):
     serializer_class = UserSimpleSerializer

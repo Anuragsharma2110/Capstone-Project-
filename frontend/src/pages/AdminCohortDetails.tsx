@@ -6,6 +6,8 @@ import axiosInstance from '../api/axios';
 import CohortMilestonePlanner from '../components/admin/CohortMilestonePlanner';
 import CreateCohortModal from '../components/admin/CreateCohortModal';
 import StatsCard from '../components/admin/StatsCard';
+import CredentialsModal from '../components/admin/CredentialsModal';
+import LearnerRoster from '../components/admin/LearnerRoster';
 
 interface CohortDetail {
     id: number;
@@ -44,8 +46,11 @@ const AdminCohortDetails: React.FC = () => {
         failed_count: number;
         created_count: number;
         failed_emails: string[];
+        credentials: Array<{ email: string; username: string; password: string }>;
         detail: string;
     } | null>(null);
+    const [showCredentials, setShowCredentials] = useState(false);
+    const [rosterKey, setRosterKey] = useState(0);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,8 +118,13 @@ const AdminCohortDetails: React.FC = () => {
             setUploadResult(res.data);
             setFile(null);
             if (fileInputRef.current) fileInputRef.current.value = '';
-            // Refresh cohort details to update student_count
+            // Show credentials modal if new users were created
+            if (res.data.credentials && res.data.credentials.length > 0) {
+                setShowCredentials(true);
+            }
+            // Refresh cohort details and roster
             fetchCohort();
+            setRosterKey(k => k + 1);
         } catch (err: any) {
             console.error('Upload failed:', err);
             setUploadError(err.response?.data?.detail || "An unexpected error occurred during upload.");
@@ -261,7 +271,7 @@ const AdminCohortDetails: React.FC = () => {
         },
     ];
 
-    const { assigned_count, overwritten_count, failed_count, failed_emails, created_count } = uploadResult || {};
+    const { assigned_count, overwritten_count, failed_count, failed_emails, created_count, credentials } = uploadResult || {};
 
     return (
         <AdminLayout title={cohort.name} breadcrumb={['Admin', 'Cohorts', cohort.name]}>
@@ -272,225 +282,214 @@ const AdminCohortDetails: React.FC = () => {
                 ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
-                {/* Main Content Area */}
-                <div>
-                    <Card style={{ padding: '2.5rem', marginBottom: '2rem', border: '1px solid var(--border-color)', width: '100%' }}>
-                        <div style={{ marginBottom: '2rem' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1.5rem', marginBottom: '0.75rem' }}>
-                                <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)', lineHeight: 1.2 }}>{cohort.name}</h1>
-                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0 }}>
-                                    <button 
-                                        onClick={() => setIsEditModalOpen(true)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '8px 16px',
-                                            borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)',
-                                            color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer',
-                                            transition: 'all 0.2s', whiteSpace: 'nowrap'
-                                        }}
-                                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
-                                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                                    >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                        </svg>
-                                        Edit Details
-                                    </button>
-                                    <span style={{
-                                        padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
-                                        background: cohort.status === 'ACTIVE' ? 'rgba(16,185,129,0.1)' : cohort.status === 'ARCHIVED' ? 'rgba(107,114,128,0.1)' : 'rgba(245,158,11,0.1)',
-                                        color: cohort.status === 'ACTIVE' ? '#059669' : cohort.status === 'ARCHIVED' ? '#4b5563' : '#d97706',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {cohort.status}
-                                    </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 420px', gap: '2rem', alignItems: 'stretch' }}>
+                    {/* Left Column: Primary Information & Enrollment */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        <Card style={{ padding: '2.5rem', border: '1px solid var(--border-color)', width: '100%', maxWidth: 'none' }}>
+                            <div style={{ marginBottom: '2rem' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1.5rem', marginBottom: '0.75rem' }}>
+                                    <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: 0, color: 'var(--text-main)', lineHeight: 1.2 }}>{cohort.name}</h1>
+                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0 }}>
+                                        <button 
+                                            onClick={() => setIsEditModalOpen(true)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '8px 16px',
+                                                borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)',
+                                                color: 'var(--text-secondary)', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer',
+                                                transition: 'all 0.2s', whiteSpace: 'nowrap'
+                                            }}
+                                            onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                                            onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                            </svg>
+                                            Edit Details
+                                        </button>
+                                        <span style={{
+                                            padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
+                                            background: cohort.status === 'ACTIVE' ? 'rgba(16,185,129,0.1)' : cohort.status === 'ARCHIVED' ? 'rgba(107,114,128,0.1)' : 'rgba(245,158,11,0.1)',
+                                            color: cohort.status === 'ACTIVE' ? '#059669' : cohort.status === 'ARCHIVED' ? '#4b5563' : '#d97706',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {cohort.status}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>
-                                {cohort.program_details?.name || 'No Program'} · {cohort.institution_name}
-                            </p>
-                        </div>
-
-                        {cohort.description && (
-                            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
-                                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</h3>
-                                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '1.05rem', margin: 0 }}>
-                                    {cohort.description}
+                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>
+                                    {cohort.program_details?.name || 'No Program'} · {cohort.institution_name}
                                 </p>
                             </div>
-                        )}
-                    </Card>
 
-                    {/* Milestone Planner */}
-                    <div style={{ marginBottom: '2rem' }}>
-                        <CohortMilestonePlanner cohortId={parseInt(id!)} />
-                    </div>
-                </div>
-
-                {/* Sidebar / Administrative Area */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {/* Learner Enrollment */}
-                    <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(37,99,235,0.1)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" />
-                                </svg>
-                            </div>
-                            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Enroll Learners</h2>
-                        </div>
-
-                        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
-                            Import learners from a CSV or Excel file to batch-assign them.
-                        </p>
-
-                        <div style={{ marginBottom: '1.25rem' }}>
-                            <input
-                                type="file"
-                                accept=".csv, .xlsx, .xls"
-                                onChange={handleFileChange}
-                                ref={fileInputRef}
-                                style={{ display: 'none' }}
-                                id="csv-upload"
-                            />
-                            <label htmlFor="csv-upload" style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                padding: '1.75rem 1rem', border: '2px dashed var(--border-color)', borderRadius: '12px',
-                                cursor: 'pointer', background: file ? 'rgba(37,99,235,0.03)' : 'var(--bg-main)',
-                                transition: 'all 0.2s', textAlign: 'center'
-                            }}
-                                onMouseOver={(e) => e.currentTarget.style.borderColor = '#2563eb'}
-                                onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                            >
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '0.5rem' }}>
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-                                </svg>
-                                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {file ? file.name : 'Choose File'}
-                                </span>
-                            </label>
-                        </div>
-
-                        {uploadError && (
-                            <div style={{ padding: '0.75rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem', lineHeight: '1.4' }}>
-                                {uploadError}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleUpload}
-                            disabled={!file || uploading}
-                            style={{
-                                width: '100%', padding: '0.75rem', borderRadius: '8px', border: 'none',
-                                background: !file || uploading ? 'var(--bg-hover)' : 'var(--primary)',
-                                color: !file || uploading ? 'var(--text-muted)' : 'white', fontWeight: 600, fontSize: '0.9rem',
-                                cursor: !file || uploading ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem'
-                            }}
-                        >
-                            {uploading ? 'Processing...' : 'Start Import'}
-                        </button>
-                    </Card>
-
-                    {/* Upload Results Summary */}
-                    {uploadResult && (
-                        <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-card)', animation: 'fadeIn 0.3s ease-out' }}>
-                            <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, margin: '0 0 1.25rem 0', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Import Summary</h3>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Created</span>
-                                    <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--primary)' }}>{created_count}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Assigned</span>
-                                    <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#10b981' }}>{assigned_count}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Failed</span>
-                                    <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#ef4444' }}>{failed_count}</span>
-                                </div>
-                            </div>
-
-                            {failed_count !== undefined && failed_count > 0 && failed_emails && (
-                                <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
-                                    <div style={{
-                                        background: 'var(--bg-main)', border: '1px solid var(--border-color)',
-                                        borderRadius: '8px', padding: '0.75rem', maxHeight: '140px', overflowY: 'auto',
-                                        fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace'
-                                    }}>
-                                        {failed_emails.map((email, idx) => (
-                                            <div key={idx} style={{ padding: '4px 0', borderBottom: idx === failed_emails.length - 1 ? 'none' : '1px solid var(--border-color)' }}>{email}</div>
-                                        ))}
-                                    </div>
+                            {cohort.description && (
+                                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
+                                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</h3>
+                                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '1.05rem', margin: 0 }}>
+                                        {cohort.description}
+                                    </p>
                                 </div>
                             )}
                         </Card>
-                    )}
 
-                    {/* Resources Area */}
-                    <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15M4 19.5A2.5 2.5 0 0 0 6.5 22h11A2.5 2.5 0 0 0 20 19.5M4 19.5h16" />
-                                </svg>
+                        {/* Learner Enrollment */}
+                        <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-card)', maxWidth: 'none', width: '100%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(37,99,235,0.1)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" />
+                                    </svg>
+                                </div>
+                                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Enroll Learners</h2>
                             </div>
-                            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Resources</h2>
-                        </div>
 
-                        {cohort.handbook_name ? (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                padding: '0.875rem', borderRadius: '10px',
-                                background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)',
-                                marginBottom: '1rem'
-                            }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                                </svg>
-                                <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {cohort.handbook_name}
-                                </span>
-                                <button onClick={handleHandbookDelete} disabled={handbookDeleting} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex' }}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                                </button>
-                            </div>
-                        ) : (
-                            <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-main)', border: '1px dashed var(--border-color)', marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                                No handbook uploaded
-                            </div>
-                        )}
+                            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+                                Import Learners from a CSV or excel file
+                            </p>
 
-                        <input ref={handbookInputRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleHandbookFileChange} />
-                        <button 
-                            onClick={() => handbookInputRef.current?.click()}
-                            style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.8125rem', cursor: 'pointer', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                        >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
-                            {handbookFile ? 'File Selected' : 'Upload Handbook'}
-                        </button>
-                        
-                        {handbookFile && (
-                            <button onClick={handleHandbookUpload} disabled={handbookUploading} style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: '0.8125rem', border: 'none', cursor: 'pointer' }}>
-                                {handbookUploading ? 'Uploading...' : 'Confirm Upload'}
-                            </button>
-                        )}
-                    </Card>
-
-                    {/* Maintenance Section */}
-                    {cohort.student_count > 0 && (
-                        <Card style={{ padding: '1.25rem', border: '1px solid rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.02)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                <h3 style={{ fontSize: '0.875rem', fontWeight: 700, margin: 0, color: '#b91c1c', textTransform: 'uppercase' }}>Maintenance</h3>
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <input
+                                    type="file"
+                                    accept=".csv, .xlsx, .xls"
+                                    onChange={handleFileChange}
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    id="csv-upload"
+                                />
+                                <label htmlFor="csv-upload" style={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                    padding: '1.75rem 1rem', border: '2px dashed var(--border-color)', borderRadius: '12px',
+                                    cursor: 'pointer', background: file ? 'rgba(37,99,235,0.03)' : 'var(--bg-main)',
+                                    transition: 'all 0.2s', textAlign: 'center'
+                                }}
+                                    onMouseOver={(e) => e.currentTarget.style.borderColor = '#2563eb'}
+                                    onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                                >
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '0.5rem' }}>
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                                    </svg>
+                                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', display: 'block', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {file ? file.name : 'Choose File'}
+                                    </span>
+                                </label>
                             </div>
-                            <button onClick={handleClearLearners} disabled={clearing} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
-                                {clearing ? 'Clearing...' : 'Wipe Learner Data'}
+
+                            {uploadError && (
+                                <div style={{ padding: '0.75rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem', lineHeight: '1.4' }}>
+                                    {uploadError}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleUpload}
+                                disabled={!file || uploading}
+                                style={{
+                                    width: '100%', padding: '0.75rem', borderRadius: '8px', border: 'none',
+                                    background: !file || uploading ? 'var(--bg-hover)' : 'var(--primary)',
+                                    color: !file || uploading ? 'var(--text-muted)' : 'white', fontWeight: 600, fontSize: '0.9rem',
+                                    cursor: !file || uploading ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem'
+                                }}
+                            >
+                                {uploading ? 'Processing...' : 'Start Import'}
                             </button>
                         </Card>
-                    )}
+
+                        {/* Import Results */}
+                        {uploadResult && (
+                            <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-card)', animation: 'fadeIn 0.3s ease-out' }}>
+                                <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, margin: '0 0 1.25rem 0', color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Import Summary</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Created</span>
+                                        <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--primary)' }}>{created_count}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Assigned</span>
+                                        <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#10b981' }}>{assigned_count}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Failed</span>
+                                        <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#ef4444' }}>{failed_count}</span>
+                                    </div>
+                                </div>
+                                {failed_count !== undefined && failed_count > 0 && failed_emails && (
+                                    <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+                                        <div style={{
+                                            background: 'var(--bg-main)', border: '1px solid var(--border-color)',
+                                            borderRadius: '8px', padding: '0.75rem', maxHeight: '140px', overflowY: 'auto',
+                                            fontSize: '0.75rem', color: 'var(--text-secondary)', fontFamily: 'monospace'
+                                        }}>
+                                            {failed_emails.map((email, idx) => (
+                                                <div key={idx} style={{ padding: '4px 0', borderBottom: idx === failed_emails.length - 1 ? 'none' : '1px solid var(--border-color)' }}>{email}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </Card>
+                        )}
+
+                        {/* Resources area */}
+                        <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', maxWidth: 'none', width: '100%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2h11A2.5 2.5 0 0 1 20 4.5v15M4 19.5A2.5 2.5 0 0 0 6.5 22h11A2.5 2.5 0 0 0 20 19.5M4 19.5h16" />
+                                    </svg>
+                                </div>
+                                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Resources</h2>
+                            </div>
+
+                            {cohort.handbook_name ? (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                    padding: '0.875rem', borderRadius: '10px',
+                                    background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                                    </svg>
+                                    <span style={{ fontSize: '0.875rem', color: '#059669', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {cohort.handbook_name}
+                                    </span>
+                                    <button onClick={handleHandbookDelete} disabled={handbookDeleting} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'flex' }}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '1rem', borderRadius: '10px', background: 'var(--bg-main)', border: '1px dashed var(--border-color)', marginBottom: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                    No handbook uploaded
+                                </div>
+                            )}
+
+                            <input ref={handbookInputRef} type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleHandbookFileChange} />
+                            <button 
+                                onClick={() => handbookInputRef.current?.click()}
+                                style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.8125rem', cursor: 'pointer', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+                                {handbookFile ? 'File Selected' : 'Upload Handbook'}
+                            </button>
+                            
+                            {handbookFile && (
+                                <button onClick={handleHandbookUpload} disabled={handbookUploading} style={{ width: '100%', padding: '0.625rem', borderRadius: '8px', background: 'var(--primary)', color: 'white', fontWeight: 600, fontSize: '0.8125rem', border: 'none', cursor: 'pointer' }}>
+                                    {handbookUploading ? 'Uploading...' : 'Confirm Upload'}
+                                </button>
+                            )}
+                        </Card>
+                    </div>
+
+                    {/* Right Column: Milestone Planner (Aligned with left column) */}
+                    <div>
+                        <CohortMilestonePlanner cohortId={parseInt(id!)} style={{ height: '100%' }} />
+                    </div>
+                </div>
+
+                {/* Bottom Section: Learner Roster - Full Width */}
+                <div style={{ width: '100%' }}>
+                    <LearnerRoster key={rosterKey} cohortId={parseInt(id!)} />
                 </div>
             </div>           
             <CreateCohortModal 
@@ -502,6 +501,13 @@ const AdminCohortDetails: React.FC = () => {
                     fetchCohort();
                 }}
             />
+            {/* Credentials Modal */}
+            {showCredentials && credentials && credentials.length > 0 && (
+                <CredentialsModal
+                    credentials={credentials}
+                    onClose={() => setShowCredentials(false)}
+                />
+            )}
         </AdminLayout>
     );
 };

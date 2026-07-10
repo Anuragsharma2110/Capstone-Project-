@@ -20,3 +20,11 @@ export interface AuthResponse {
     access: string;
     refresh: string;
 }
+
+/** Credentials returned on team creation / credential regeneration */
+export interface TeamCredential {
+    team_id?: number;
+    team_name?: string;
+    username: string;
+    password: string;
+}

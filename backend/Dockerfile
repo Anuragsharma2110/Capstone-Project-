@@ -1,18 +1,14 @@
-# Dockerfile for Django Backend
-
-# Use Python 3.14-slim for a smaller, reproducible image
-FROM python:3.14-slim
+# Use Python 3.12-slim for stability
+FROM python:3.12-slim
 
 # Set environment variables
-# PYTHONDONTWRITEBYTECODE: Prevents Python from writing pyc files to disc
-# PYTHONUNBUFFERED: Prevents Python from buffering stdout and stderr
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies required for mysqlclient and other potential packages
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     default-libmysqlclient-dev \
@@ -29,5 +25,5 @@ COPY . /app/
 # Expose port 8000
 EXPOSE 8000
 
-# Default command (can be overridden in docker-compose)
+# Use runserver for demo/development
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

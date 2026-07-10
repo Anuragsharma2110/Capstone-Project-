@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../layouts/AdminLayout';
 import { Button } from '../components/ui';
-import axiosInstance from '../utils/axios';
+import axiosInstance from '../api/axios';
 
 const ProfessorSubmissionReview: React.FC = () => {
     const { teamId } = useParams<{ teamId: string }>();
     const navigate = useNavigate();
     const [feedback, setFeedback] = useState('');
     const [grade, setGrade] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
     const [teamDetails, setTeamDetails] = useState<any>(null);
     const [submissionDetails, setSubmissionDetails] = useState<any>(null);
     const [submissionHistory, setSubmissionHistory] = useState<any[]>([]);
@@ -27,6 +29,28 @@ const ProfessorSubmissionReview: React.FC = () => {
                     );
                     setSubmissionHistory(sortedSubs);
                     setSubmissionDetails(sortedSubs[0]);
+
+                    // Fetch existing evaluation for the latest submission
+                    if (sortedSubs[0].has_evaluations) {
+                        try {
+                            const evalRes = await axiosInstance.get(`/evaluations/?submission=${sortedSubs[0].id}`);
+                            if (evalRes.data && evalRes.data.length > 0) {
+                                const existingEval = evalRes.data[0];
+                                // Extract grade from feedback if it was embedded
+                                const feedbackText = existingEval.feedback || '';
+                                const gradeMatch = feedbackText.match(/^Grade:\s*(.+?)(?:\n\n|$)/);
+                                if (gradeMatch) {
+                                    setGrade(gradeMatch[1].trim());
+                                    setFeedback(feedbackText.replace(/^Grade:\s*.+?\n\n/, '').trim());
+                                } else {
+                                    setGrade(String(existingEval.score));
+                                    setFeedback(feedbackText);
+                                }
+                            }
+                        } catch (evalErr) {
+                            console.error("Error fetching evaluation", evalErr);
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("Error fetching data", err);
@@ -37,8 +61,42 @@ const ProfessorSubmissionReview: React.FC = () => {
         fetchData();
     }, [teamId]);
 
-    const handleSaveReview = () => {
-        navigate('/professor/submissions');
+    const handleSaveReview = async () => {
+        if (!submissionDetails) {
+            setSaveError('No submission to evaluate.');
+            return;
+        }
+        if (!grade.trim()) {
+            setSaveError('Please enter a grade or score.');
+            return;
+        }
+
+        setSaving(true);
+        setSaveError('');
+
+        try {
+            // Parse numeric score from grade input (extract first number found)
+            const numericMatch = grade.match(/\d+/);
+            const score = numericMatch ? parseInt(numericMatch[0], 10) : 0;
+
+            // Include the original grade text in the feedback for full context
+            const fullFeedback = score === 0 || grade !== String(score)
+                ? `Grade: ${grade.trim()}\n\n${feedback}`.trim()
+                : feedback;
+
+            await axiosInstance.post('/evaluations/', {
+                submission: submissionDetails.id,
+                score: score || 1, // PositiveIntegerField requires >= 1
+                feedback: fullFeedback,
+            });
+
+            navigate('/professor/submissions');
+        } catch (err: any) {
+            console.error('Error saving evaluation', err);
+            setSaveError(err.response?.data?.detail || 'Failed to save evaluation. Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (loading) return <AdminLayout title="Loading..." breadcrumb={[]}><div>Loading...</div></AdminLayout>;
@@ -114,7 +172,9 @@ const ProfessorSubmissionReview: React.FC = () => {
                                     </svg>
                                     Download
                                 </a>
+                            </div>
 
+                            {submissionDetails?.file_url && (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-main)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     <div style={{ width: '40px', height: '40px', background: 'rgba(37, 99, 235, 0.1)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -123,14 +183,14 @@ const ProfessorSubmissionReview: React.FC = () => {
                                         </svg>
                                     </div>
                                     <div>
-                                        <a href="https://github.com/team-alpha/final-project" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: 'var(--primary-blue)', fontSize: '0.95rem', textDecoration: 'underline' }}>
-                                            https://github.com/team-alpha/final-project
+                                        <a href={submissionDetails.file_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: 'var(--primary-blue)', fontSize: '0.95rem', textDecoration: 'underline' }}>
+                                            {submissionDetails.file_url}
                                         </a>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>GitHub Repository</div>
                                     </div>
                                 </div>
 
-                                <a href="https://github.com/team-alpha/final-project" target="_blank" rel="noopener noreferrer" style={{
+                                <a href={submissionDetails.file_url} target="_blank" rel="noopener noreferrer" style={{
                                     background: 'transparent',
                                     border: '1px solid var(--border-color)',
                                     color: 'var(--text-main)',
@@ -153,6 +213,7 @@ const ProfessorSubmissionReview: React.FC = () => {
                                     Open Link
                                 </a>
                             </div>
+                            )}
                         </div>
 
                     </div>
@@ -170,7 +231,7 @@ const ProfessorSubmissionReview: React.FC = () => {
                     }}>
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem', marginTop: 0 }}>Evaluation</h3>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '2rem' }}>
-                            Provide feedback and grading for {teamId}'s submission.
+                            Provide feedback and grading.
                         </p>
 
                         <div style={{ marginBottom: '1.5rem' }}>
@@ -214,11 +275,18 @@ const ProfessorSubmissionReview: React.FC = () => {
                             />
                         </div>
 
+                        {saveError && (
+                            <div style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px' }}>
+                                {saveError}
+                            </div>
+                        )}
+
                         <Button
                             onClick={handleSaveReview}
-                            style={{ width: '100%', padding: '1rem' }}
+                            disabled={saving}
+                            style={{ width: '100%', padding: '1rem', opacity: saving ? 0.6 : 1 }}
                         >
-                            Save & Complete Review
+                            {saving ? 'Saving...' : 'Save & Complete Review'}
                         </Button>
                     </div>
                 </div>

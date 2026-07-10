@@ -13,6 +13,7 @@ class User(AbstractUser):
         choices=Role.choices,
         default=Role.LEARNER,
     )
+    access_until = models.DateField(null=True, blank=True)
 
     def is_learner(self):
         return self.role == self.Role.LEARNER
@@ -71,9 +72,21 @@ class Cohort(models.Model):
         return self.name
 
 class CohortMembership(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', _('Active')
+        GRADUATED = 'GRADUATED', _('Graduated')
+        DROPPED = 'DROPPED', _('Dropped')
+        SUSPENDED = 'SUSPENDED', _('Suspended')
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cohort_memberships')
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='memberships')
     joined_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    access_until = models.DateField(null=True, blank=True)
 
     class Meta:
         unique_together = ('user', 'cohort')
@@ -85,6 +98,14 @@ class Team(models.Model):
     name = models.CharField(max_length=255)
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='teams')
     is_final_submitted = models.BooleanField(default=False)
+    # Shared login account for all students on this team
+    team_user = models.OneToOneField(
+        'User',
+        on_delete=models.SET_NULL,
+        related_name='owned_team',
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -148,6 +169,8 @@ class Notification(models.Model):
         ALL = 'ALL', _('All Users')
         PROFESSORS = 'PROFESSORS', _('Professors Only')
         LEARNERS = 'LEARNERS', _('Learners Only')
+        COHORT = 'COHORT', _('Specific Cohort')
+        TEAM = 'TEAM', _('Specific Team')
 
     class Category(models.TextChoices):
         MESSAGE = 'MESSAGE', _('Message')
@@ -161,6 +184,7 @@ class Notification(models.Model):
     audience = models.CharField(max_length=20, choices=Audience.choices, default=Audience.ALL)
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.SYSTEM)
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
+    team = models.ForeignKey('Team', on_delete=models.CASCADE, related_name='notifications', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

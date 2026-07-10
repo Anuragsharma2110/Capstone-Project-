@@ -55,8 +55,10 @@ const CategoryIcon: React.FC<{ category: string }> = ({ category }) => {
 
 const AdminNotifications: React.FC = () => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [cohorts, setCohorts] = useState<{id: number, name: string}[]>([]);
+    const [teams, setTeams] = useState<{id: number, name: string, cohort: number}[]>([]);
     const [, setLoading] = useState(true);
-    const [form, setForm] = useState({ title: '', message: '', audience: 'ALL', category: 'SYSTEM' });
+    const [form, setForm] = useState({ title: '', message: '', audience: 'ALL', category: 'SYSTEM', cohort: '', team: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -67,8 +69,12 @@ const AdminNotifications: React.FC = () => {
         try {
             const res = await axiosInstance.get('/notifications/');
             setNotifications(res.data);
+            const cohortsRes = await axiosInstance.get('/cohorts/');
+            setCohorts(cohortsRes.data);
+            const teamsRes = await axiosInstance.get('/teams/');
+            setTeams(teamsRes.data);
         } catch (e) {
-            console.error('Failed to fetch notifications', e);
+            console.error('Failed to fetch data', e);
         } finally {
             setLoading(false);
         }
@@ -86,13 +92,23 @@ const AdminNotifications: React.FC = () => {
         }
         setIsSubmitting(true);
         try {
-            await axiosInstance.post('/notifications/', form);
+            const payload: any = { ...form };
+            if (payload.audience !== 'COHORT' && payload.audience !== 'TEAM') {
+                payload.cohort = null;
+                payload.team = null;
+            }
+            if (payload.audience === 'TEAM' && !payload.team) throw new Error("Team selection is required.");
+            if (payload.audience === 'COHORT' && !payload.cohort) throw new Error("Cohort selection is required.");
+            if (payload.cohort === '') payload.cohort = null;
+            if (payload.team === '') payload.team = null;
+
+            await axiosInstance.post('/notifications/', payload);
             setSuccess('Notification published successfully!');
-            setForm({ title: '', message: '', audience: 'ALL', category: 'SYSTEM' });
+            setForm({ title: '', message: '', audience: 'ALL', category: 'SYSTEM', cohort: '', team: '' });
             fetchNotifications();
-        } catch (e) {
-            const axiosErr = e as { response?: { data?: { detail?: string } } };
-            setError(axiosErr.response?.data?.detail || 'Failed to publish notification.');
+        } catch (e: any) {
+            const detail = e.response?.data?.detail || e.message || 'Failed to publish notification.';
+            setError(detail);
         } finally {
             setIsSubmitting(false);
         }
@@ -162,6 +178,8 @@ const AdminNotifications: React.FC = () => {
                                     <option value="ALL">All Users</option>
                                     <option value="PROFESSORS">Professors</option>
                                     <option value="LEARNERS">Learners</option>
+                                    <option value="COHORT">Specific Cohort</option>
+                                    <option value="TEAM">Specific Team</option>
                                 </select>
                             </div>
                             <div>
@@ -178,6 +196,34 @@ const AdminNotifications: React.FC = () => {
                                 </select>
                             </div>
                         </div>
+
+                        {form.audience === 'COHORT' && (
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Cohort</label>
+                                <select
+                                    value={form.cohort}
+                                    onChange={e => setForm({ ...form, cohort: e.target.value })}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">-- Choose Cohort --</option>
+                                    {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+
+                        {form.audience === 'TEAM' && (
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Team</label>
+                                <select
+                                    value={form.team}
+                                    onChange={e => setForm({ ...form, team: e.target.value })}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">-- Choose Team --</option>
+                                    {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            </div>
+                        )}
 
                         <div>
                             <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Message</label>

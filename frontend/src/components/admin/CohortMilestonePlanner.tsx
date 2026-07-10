@@ -13,9 +13,10 @@ interface Milestone {
 
 interface Props {
   cohortId: number;
+  style?: React.CSSProperties;
 }
 
-const CohortMilestonePlanner: React.FC<Props> = ({ cohortId }) => {
+const CohortMilestonePlanner: React.FC<Props> = ({ cohortId, style }) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -124,7 +125,7 @@ const CohortMilestonePlanner: React.FC<Props> = ({ cohortId }) => {
   if (loading) return <div style={{ color: 'var(--text-muted)' }}>Loading milestones...</div>;
 
   return (
-    <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', marginTop: '1.5rem' }}>
+    <Card style={{ padding: '1.5rem', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16,185,129,0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

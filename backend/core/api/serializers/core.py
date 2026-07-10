@@ -72,10 +72,14 @@ class TeamMemberSimpleSerializer(serializers.ModelSerializer):
 class TeamSerializer(serializers.ModelSerializer):
     cohort_details = CohortSerializer(source='cohort', read_only=True)
     members = TeamMemberSimpleSerializer(many=True, read_only=True)
+    team_username = serializers.SerializerMethodField()
 
     class Meta:
         model = Team
         fields = '__all__'
+
+    def get_team_username(self, obj):
+        return obj.team_user.username if obj.team_user else None
 
 class TeamMemberSerializer(serializers.ModelSerializer):
     user_details = UserSimpleSerializer(source='user', read_only=True)

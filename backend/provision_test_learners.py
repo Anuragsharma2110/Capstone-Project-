@@ -12,7 +12,7 @@ if not cohort:
 
 print(f"Assigning to cohort: {cohort.name}")
 
-CSV_PATH = "/app/../learners_test_data.csv"
+CSV_PATH = "/app/learners_test_data.csv"
 password = "Welcome123!"
 
 try:

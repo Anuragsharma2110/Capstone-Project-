@@ -15,11 +15,8 @@ const Home: React.FC = () => {
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
-                    <Link to="/register/learner">
-                        <Button style={{ padding: '0.875rem 2rem', fontSize: '1.125rem' }}>Register as Learner</Button>
-                    </Link>
                     <Link to="/login">
-                        <Button variant="outline" style={{ padding: '0.875rem 2rem', fontSize: '1.125rem' }}>Sign In to Portal</Button>
+                        <Button style={{ padding: '1rem 2.5rem', fontSize: '1.25rem', fontWeight: 600 }}>Sign In to Portal</Button>
                     </Link>
                 </div>
             </div>

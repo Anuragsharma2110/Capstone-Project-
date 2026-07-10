@@ -9,7 +9,7 @@ from core.api.views.auth import (
     LogoutView,
     ChangePasswordView,
 )
-from core.api.views.users import UserDetailView, ProfessorListView
+from core.api.views.users import AdminListView, UserDetailView, ProfessorListView
 from core.api.views.core import (
     ProgramViewSet, NominationViewSet, CohortViewSet,
     CohortMembershipViewSet, TeamViewSet, TeamMemberViewSet, TaskViewSet,
@@ -38,6 +38,7 @@ urlpatterns = [
     path('auth/login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('auth/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
+    path('admin/users/', AdminListView.as_view(), name='admin_users'),
     path('auth/me/', UserDetailView.as_view(), name='user_detail'),
     path('auth/change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('users/professors/', ProfessorListView.as_view(), name='professor_list'),

@@ -23,7 +23,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 const response = await api.get('/auth/me/');
                 setUser(response.data);
             } catch {
-                console.log("Not authenticated");
+
                 setUser(null);
             } finally {
                 setLoading(false);
