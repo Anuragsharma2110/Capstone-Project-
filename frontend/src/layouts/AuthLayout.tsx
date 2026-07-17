@@ -17,8 +17,6 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
                     <span className="logo-text">Capstone Portal</span>
                 </div>
                 <div className="header-links" style={{ alignItems: 'center' }}>
-                    <span>Need help?</span>
-                    <a href="#">Documentation</a>
                     <button
                         className="icon-button theme-toggle"
                         onClick={toggleTheme}
